@@ -5,6 +5,7 @@ Train volatility forecasting models (GARCH, realized vol).
 import sys
 import argparse
 from pathlib import Path
+from typing import Dict
 import pandas as pd
 import numpy as np
 import yaml

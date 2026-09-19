@@ -173,7 +173,8 @@ class XGBoostDirectionModel:
         y: pd.Series,
         n_splits: int = 5,
         purge_gap: int = 24,
-        embargo_pct: float = 0.01
+        embargo_pct: float = 0.01,
+        verbose: bool = False
     ) -> Dict:
         """
         Time-series cross-validation with purging and embargo.
