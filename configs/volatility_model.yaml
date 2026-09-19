@@ -1,0 +1,37 @@
+# Volatility Model Configuration
+garch:
+  p: 1
+  q: 1
+  dist: "normal"  # normal, studentst, ged
+  mean_model: "constant"  # constant, zero, AR
+  vol_target: "realized"  # realized, implied
+  forecast_horizon: 24  # hours
+  min_obs: 500
+  refit_frequency: 24  # hours
+
+realized_vol:
+  windows: [24, 168, 720]  # 1d, 1w, 1m in hours
+  annualization_factor: 8760  # hours in year
+  method: "parkinson"  # close, parkinson, garman_klass, rogers_satchell
+
+implied_vol:
+  risk_free_rate: 0.05
+  option_chain_source: "deribit"
+  min_dte: 1
+  max_dte: 30
+  interpolation_method: "cubic"
+
+features:
+  atr_window: 24
+  rv_windows: [24, 168, 720]
+  volume_windows: [24, 168]
+  include_garch_features: true
+  include_implied_features: true
+
+training:
+  train_frac: 0.7
+  val_frac: 0.15
+  test_frac: 0.15
+  loss: "mse"  # mse, qlike, mape
+  early_stopping_rounds: 50
+  random_seed: 42

@@ -1,0 +1,59 @@
+# Direction Model Configuration
+xgboost:
+  objective: "multi:softprob"
+  num_class: 3
+  eval_metric: "mlogloss"
+  eta: 0.03
+  max_depth: 6
+  min_child_weight: 10
+  subsample: 0.8
+  colsample_bytree: 0.8
+  gamma: 0.1
+  reg_alpha: 0.1
+  reg_lambda: 1.0
+  n_estimators: 2000
+  early_stopping_rounds: 100
+  class_weights: "balanced"  # balanced, custom, none
+  custom_weights: [1.0, 0.5, 1.0]  # short, neutral, long
+
+neural_net:
+  hidden_layers: [128, 64, 32]
+  dropout: 0.3
+  activation: "relu"
+  batch_norm: true
+  learning_rate: 0.001
+  batch_size: 256
+  epochs: 200
+  early_stopping_patience: 20
+  weight_decay: 1e-4
+  class_weights: "balanced"
+
+ensemble:
+  method: "weighted_average"  # weighted_average, agreement_filter, stacking
+  xgb_weight: 0.7
+  nn_weight: 0.3
+  agreement_threshold: 0.6  # for agreement_filter
+  meta_learner: "logistic"  # for stacking
+
+features:
+  price_lags: [1, 2, 3, 4, 6, 12, 24]
+  return_lags: [1, 2, 3, 4, 6, 12, 24]
+  volatility_lags: [1, 2, 3, 4, 6, 12, 24]
+  volume_lags: [1, 2, 3, 4, 6, 12, 24]
+  ema_windows: [12, 24, 168]
+  interaction_terms: true
+  volatility_regime: true
+
+target:
+  horizon: 4  # hours ahead
+  threshold_pct: 0.015  # 1.5% move for long/short
+  labeling_method: "terciles"  # terciles, fixed_threshold, quantile
+
+training:
+  train_frac: 0.7
+  val_frac: 0.15
+  test_frac: 0.15
+  purge_gap: 24  # hours between train/val/test
+  embargo_pct: 0.01
+  random_seed: 42
+  cv_folds: 5
