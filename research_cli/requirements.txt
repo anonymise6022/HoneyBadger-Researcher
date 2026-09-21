@@ -1,0 +1,16 @@
+# research_cli -- standalone terminal research tool.
+# Install with:  pip install -r research_cli/requirements.txt
+pandas
+numpy
+scipy
+matplotlib
+requests
+yfinance          # price/fundamental history
+typer             # CLI framework
+rich              # terminal formatting
+pydantic          # EvidenceBundle schema + validation
+pytest            # tests
+
+# Only needed for `--llm`. Without it (or without credentials) the tool
+# falls back to the plain-text template, which is a supported path.
+anthropic

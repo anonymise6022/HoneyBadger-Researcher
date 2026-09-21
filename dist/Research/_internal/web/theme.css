@@ -1,0 +1,201 @@
+/* Themes and the visual language.
+ *
+ * The brief was "terminal-like, but not 8-bit". The distinction is real and
+ * worth stating, because it drives every choice below.
+ *
+ * What is kept from a terminal: a monospaced face, a dark ground, dense
+ * information, left-aligned rules, uppercase small labels, no decoration
+ * that does not carry meaning.
+ *
+ * What is deliberately discarded: block-drawing characters, pure #000 on
+ * pure #0F0, hard 1-bit edges, and the CRT affectations that read as
+ * costume rather than instrument. Type is the system monospace, which on
+ * macOS is SF Mono -- properly hinted and antialiased. Surfaces are layered
+ * in three steps rather than outlined. Borders are hairlines at low
+ * contrast. The result should look like a well-made measuring device, not
+ * like a prop from a film about hacking.
+ *
+ * Every theme defines the same token names, so nothing downstream knows
+ * which theme is active. Colours are declared as OKLCH-adjacent hex chosen
+ * for roughly equal perceived lightness within a role, so switching theme
+ * changes hue without changing which elements read as foreground.
+ */
+
+:root {
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --radius: 6px;
+  --radius-sm: 4px;
+  --hairline: 1px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration: 260ms;
+  --duration-slow: 520ms;
+}
+
+/* ---- Graphite: the default. Neutral, cool, low-drama. ---- */
+[data-theme="graphite"] {
+  --bg: #0d0f12;
+  --surface: #14171c;
+  --surface-2: #1b1f26;
+  --raised: #22272f;
+  --line: #262c35;
+  --line-strong: #333b47;
+
+  --text: #e6e9ee;
+  --text-dim: #9aa3b0;
+  --text-faint: #6b7483;
+
+  --accent: #5b9dff;
+  --accent-dim: #2f5f9e;
+  --accent-wash: rgba(91, 157, 255, 0.10);
+
+  --good: #3ecf8e;
+  --warn: #e8b45c;
+  --bad: #f2585b;
+  --neutral: #7c8595;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.30);
+}
+
+/* ---- Amber: the classic phosphor, warmed and de-saturated to stay legible ---- */
+[data-theme="amber"] {
+  --bg: #100c07;
+  --surface: #17120b;
+  --surface-2: #1f1810;
+  --raised: #281f14;
+  --line: #2d2416;
+  --line-strong: #3d3120;
+
+  --text: #f2e3c8;
+  --text-dim: #b39d75;
+  --text-faint: #7d6c50;
+
+  --accent: #ffb545;
+  --accent-dim: #9c6d24;
+  --accent-wash: rgba(255, 181, 69, 0.10);
+
+  --good: #9fc54a;
+  --warn: #ffb545;
+  --bad: #e8623f;
+  --neutral: #8a7857;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* ---- Nord: cool blue-grey, the calmest of the dark themes ---- */
+[data-theme="nord"] {
+  --bg: #20242c;
+  --surface: #272c36;
+  --surface-2: #2e343f;
+  --raised: #363d4a;
+  --line: #3a4150;
+  --line-strong: #4a5364;
+
+  --text: #e3e8f0;
+  --text-dim: #a5b0c2;
+  --text-faint: #78849a;
+
+  --accent: #88c0d0;
+  --accent-dim: #4d7d8c;
+  --accent-wash: rgba(136, 192, 208, 0.10);
+
+  --good: #a3be8c;
+  --warn: #ebcb8b;
+  --bad: #bf616a;
+  --neutral: #7b88a1;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+
+/* ---- Crimson: dark with a red accent, for people who like a warmer signal ---- */
+[data-theme="crimson"] {
+  --bg: #0f0c0e;
+  --surface: #171316;
+  --surface-2: #1e191d;
+  --raised: #262024;
+  --line: #2a2328;
+  --line-strong: #3b3138;
+
+  --text: #eee6ea;
+  --text-dim: #ab9ca4;
+  --text-faint: #786a72;
+
+  --accent: #ff6b81;
+  --accent-dim: #9c3b4c;
+  --accent-wash: rgba(255, 107, 129, 0.10);
+
+  --good: #4ec9a0;
+  --warn: #e8b45c;
+  --bad: #ff6b81;
+  --neutral: #8a7b83;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.30);
+}
+
+/* ---- Vellum: light. Warm paper rather than clinical white, because a
+ *      pure-white ground under a monospace face is glaring.              ---- */
+[data-theme="vellum"] {
+  --bg: #f4f1ea;
+  --surface: #faf8f3;
+  --surface-2: #f0ece3;
+  --raised: #ffffff;
+  --line: #ddd7cb;
+  --line-strong: #c4bcab;
+
+  --text: #1e1c18;
+  --text-dim: #5c574d;
+  --text-faint: #8a8376;
+
+  --accent: #2f6ab8;
+  --accent-dim: #8fb0dc;
+  --accent-wash: rgba(47, 106, 184, 0.08);
+
+  --good: #1d7a54;
+  --warn: #9a6b12;
+  --bad: #b3392f;
+  --neutral: #6f695c;
+
+  --shadow: 0 1px 2px rgba(60, 50, 30, 0.08), 0 8px 24px rgba(60, 50, 30, 0.08);
+}
+
+/* Theme changes animate, so switching does not flash. Deliberately limited
+ * to colour properties: transitioning `all` would also animate layout and
+ * make every re-render jitter. */
+body,
+.panel,
+.stat,
+.chip,
+input,
+select,
+button {
+  transition:
+    background-color var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+
+/* Anyone who has asked their OS to reduce motion gets no motion. This is
+ * not optional politeness -- vestibular triggers are a real accessibility
+ * failure, and the animations here are decorative. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

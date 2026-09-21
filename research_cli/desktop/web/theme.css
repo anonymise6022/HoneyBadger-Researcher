@@ -1,0 +1,240 @@
+/* Themes.
+ *
+ * The brief was "terminal-like, but not 8-bit", and the distinction drives
+ * every choice here. Kept from a terminal: a monospaced face, a dark ground,
+ * dense information, hairline rules, uppercase micro-labels. Discarded:
+ * block-drawing characters, #0F0 on #000, and the CRT affectations that read
+ * as costume rather than instrument.
+ *
+ * Each theme is a *pairing*, not a hue swap. The ground, the three ink
+ * levels and the accent are chosen together so that the accent lands at
+ * roughly the same perceived contrast against its own background in every
+ * theme -- which is what lets the same component read identically across all
+ * of them without per-theme overrides anywhere downstream.
+ *
+ * Every theme defines the same token names. Nothing outside this file knows
+ * which one is active.
+ */
+
+:root {
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+  --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+
+  --radius: 8px;
+  --radius-sm: 5px;
+  --radius-lg: 14px;
+  --hairline: 1px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.26, 0.64, 1);
+  --duration-fast: 130ms;
+  --duration: 280ms;
+  --duration-slow: 560ms;
+}
+
+/* ---- Deep Field ---------------------------------------------------------
+ * Near-black with a blue cast and a cold cyan accent. The default: it gets
+ * out of the way, and cyan on blue-black is the highest-legibility pairing
+ * here without being loud.                                                */
+[data-theme="deep-field"] {
+  --bg: #080a0f;
+  --surface: #0f1219;
+  --surface-2: #161b25;
+  --raised: #1e2531;
+  --line: #1f2733;
+  --line-strong: #2f3a4a;
+
+  --text: #e8edf5;
+  --text-dim: #93a1b5;
+  --text-faint: #5d6a7e;
+
+  --accent: #4fd6e8;
+  --accent-2: #7c8cff;
+  --accent-dim: #1f6b78;
+  --accent-wash: rgba(79, 214, 232, 0.09);
+
+  --good: #3ddc97;
+  --warn: #f5c86b;
+  --bad: #ff6b7a;
+  --neutral: #6b7891;
+  --glow: rgba(79, 214, 232, 0.22);
+}
+
+/* ---- Phosphor -----------------------------------------------------------
+ * The amber monitor, warmed and de-saturated until it is readable for an
+ * hour rather than impressive for a minute.                               */
+[data-theme="phosphor"] {
+  --bg: #0d0a06;
+  --surface: #14100a;
+  --surface-2: #1d1710;
+  --raised: #261e14;
+  --line: #2a2116;
+  --line-strong: #3d3123;
+
+  --text: #f4e6c9;
+  --text-dim: #b8a179;
+  --text-faint: #7f6f52;
+
+  --accent: #ffb545;
+  --accent-2: #ff8c42;
+  --accent-dim: #8a5f1f;
+  --accent-wash: rgba(255, 181, 69, 0.09);
+
+  --good: #b5c94a;
+  --warn: #ffb545;
+  --bad: #ef6a45;
+  --neutral: #8c7a58;
+  --glow: rgba(255, 181, 69, 0.20);
+}
+
+/* ---- Tidewater ----------------------------------------------------------
+ * Cool slate and sea-glass. The calmest of the set: lower contrast, softer
+ * accent, for long sessions.                                              */
+[data-theme="tidewater"] {
+  --bg: #121a1e;
+  --surface: #182227;
+  --surface-2: #1f2b31;
+  --raised: #26343b;
+  --line: #24323a;
+  --line-strong: #35474f;
+
+  --text: #e0eaec;
+  --text-dim: #9db2b8;
+  --text-faint: #6d858d;
+
+  --accent: #7ed4c0;
+  --accent-2: #5fb3d4;
+  --accent-dim: #35756a;
+  --accent-wash: rgba(126, 212, 192, 0.09);
+
+  --good: #8fd48a;
+  --warn: #e8c37a;
+  --bad: #e07a7a;
+  --neutral: #7590 99;
+  --neutral: #759099;
+  --glow: rgba(126, 212, 192, 0.18);
+}
+
+/* ---- Oxide --------------------------------------------------------------
+ * Charcoal and copper. Warmer than Deep Field without going amber; the
+ * accent reads as metal rather than as a warning.                         */
+[data-theme="oxide"] {
+  --bg: #0e0d0c;
+  --surface: #151312;
+  --surface-2: #1d1a18;
+  --raised: #262220;
+  --line: #272321;
+  --line-strong: #3a332f;
+
+  --text: #ece7e2;
+  --text-dim: #a89c93;
+  --text-faint: #746961;
+
+  --accent: #e08a5f;
+  --accent-2: #c96a4a;
+  --accent-dim: #7d4830;
+  --accent-wash: rgba(224, 138, 95, 0.09);
+
+  --good: #7fc29b;
+  --warn: #e0b45f;
+  --bad: #e06666;
+  --neutral: #877b72;
+  --glow: rgba(224, 138, 95, 0.18);
+}
+
+/* ---- Ultraviolet --------------------------------------------------------
+ * Near-black with violet and magenta. The loudest of the dark themes, and
+ * the accent is deliberately held to small elements so it stays a signal.  */
+[data-theme="ultraviolet"] {
+  --bg: #0a0812;
+  --surface: #110e1c;
+  --surface-2: #181426;
+  --raised: #211b33;
+  --line: #221c36;
+  --line-strong: #342a4d;
+
+  --text: #eae6f7;
+  --text-dim: #a49bc4;
+  --text-faint: #6f6690;
+
+  --accent: #a68bff;
+  --accent-2: #ff7ad1;
+  --accent-dim: #5b4499;
+  --accent-wash: rgba(166, 139, 255, 0.10);
+
+  --good: #4fd6a0;
+  --warn: #f0c46a;
+  --bad: #ff6f91;
+  --neutral: #7d749b;
+  --glow: rgba(166, 139, 255, 0.22);
+}
+
+/* ---- Vellum -------------------------------------------------------------
+ * The light theme. Warm paper rather than clinical white: a pure-white
+ * ground under a monospace face is glaring at any length.                  */
+[data-theme="vellum"] {
+  --bg: #f3efe7;
+  --surface: #faf7f1;
+  --surface-2: #efeae0;
+  --raised: #ffffff;
+  --line: #dcd5c8;
+  --line-strong: #bfb6a5;
+
+  --text: #1c1a16;
+  --text-dim: #57534a;
+  --text-faint: #867f72;
+
+  --accent: #2b6cb8;
+  --accent-2: #9a5bb5;
+  --accent-dim: #8fb2dc;
+  --accent-wash: rgba(43, 108, 184, 0.07);
+
+  --good: #1d7a54;
+  --warn: #96690f;
+  --bad: #b3392f;
+  --neutral: #6c675c;
+  --glow: rgba(43, 108, 184, 0.14);
+}
+
+/* Theme changes animate so switching does not flash. Scoped to colour
+ * properties only: transitioning `all` would also animate layout and make
+ * every render jitter. */
+body,
+.panel,
+.stat,
+.chip,
+.card,
+input,
+select,
+textarea,
+button {
+  transition:
+    background-color var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+
+/* Anyone who has asked their OS to reduce motion gets none. Not politeness:
+ * vestibular triggers are a real accessibility failure and every animation
+ * here is decorative. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

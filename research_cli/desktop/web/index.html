@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="deep-field" data-depth="beginner" data-stage="home">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Research</title>
+  <link rel="stylesheet" href="theme.css" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- Title bar. Hidden entirely on the home screen so the landing is bare. -->
+  <header class="titlebar" id="titlebar">
+    <button class="brand" id="go-home" title="Back to the start">Research</button>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-view="ask" aria-selected="true">Ask</button>
+      <button class="tab" role="tab" data-view="explore" aria-selected="false">Explore</button>
+      <button class="tab" role="tab" data-view="lab" aria-selected="false">
+        Lab<span class="alpha-dot" title="Includes experimental models"></span>
+      </button>
+      <button class="tab" role="tab" data-view="settings" aria-selected="false">Settings</button>
+    </nav>
+    <span class="spacer"></span>
+    <div class="depth-switch" id="depth-switch" role="radiogroup" aria-label="Explanation depth"></div>
+  </header>
+
+  <div class="scanline" id="scanline"></div>
+
+  <main class="content" id="content">
+
+    <!-- ============================ HOME ============================ -->
+    <section class="view active" id="view-home">
+      <div class="home">
+        <h1 class="home-title">Research</h1>
+        <p class="home-sub">
+          Find out what moved a stock, or what a company's numbers look like.
+          You'll get evidence you can check — never a guess dressed up as an answer.
+        </p>
+        <div class="home-prompt">
+          <input type="text" id="home-query" spellcheck="false" autocomplete="off"
+                 placeholder="Ask why a stock moved, or whether a company is worth a look…" />
+          <button id="home-go" aria-label="Ask">→</button>
+        </div>
+        <div class="home-examples" id="home-examples"></div>
+        <div class="home-depth" id="home-depth" role="radiogroup"
+             aria-label="How much should it explain?"></div>
+      </div>
+    </section>
+
+    <!-- ============================ ASK ============================= -->
+    <section class="view" id="view-ask">
+      <div class="control-row">
+        <div class="prompt">
+          <span class="prompt-sigil">&gt;</span>
+          <input type="text" id="query" spellcheck="false" autocomplete="off"
+                 placeholder="Ask another question…" />
+        </div>
+        <button class="primary" id="run">Ask</button>
+      </div>
+      <div class="stack" id="ask-out"></div>
+    </section>
+
+    <!-- =========================== EXPLORE ========================== -->
+    <section class="view" id="view-explore">
+      <div class="control-row">
+        <div class="prompt">
+          <span class="prompt-sigil">⌕</span>
+          <input type="text" id="explore-query" spellcheck="false" autocomplete="off"
+                 placeholder="Search a company or ticker — try “apple”, “tesla”, “eurusd”…" />
+        </div>
+        <select id="explore-range">
+          <option value="90">3 months</option>
+          <option value="180">6 months</option>
+          <option value="365" selected>1 year</option>
+          <option value="1095">3 years</option>
+          <option value="1825">5 years</option>
+        </select>
+      </div>
+      <div class="search-results" id="explore-results"></div>
+      <div class="stack" id="explore-out"></div>
+    </section>
+
+    <!-- ============================= LAB ============================ -->
+    <section class="view" id="view-lab">
+      <div class="lab-head">
+        <div class="lab-tabs" role="tablist">
+          <button class="lab-tab" data-lab="build" aria-selected="true">Build a strategy</button>
+          <button class="lab-tab" data-lab="preset" aria-selected="false">Ready-made</button>
+          <button class="lab-tab" data-lab="options" aria-selected="false">Options</button>
+          <button class="lab-tab" data-lab="diagnose" aria-selected="false">Diagnose a market</button>
+        </div>
+      </div>
+
+      <div class="control-row">
+        <div class="prompt" style="max-width:260px;">
+          <span class="prompt-sigil">$</span>
+          <input type="text" id="lab-ticker" spellcheck="false" autocomplete="off" placeholder="SPY" />
+        </div>
+        <select id="lab-years">
+          <option value="5">5 years</option>
+          <option value="8">8 years</option>
+          <option value="12" selected>12 years</option>
+          <option value="20">20 years</option>
+        </select>
+        <span class="spacer"></span>
+        <button class="primary" id="lab-run">Run</button>
+      </div>
+
+      <div class="lab-panel" id="lab-build">
+        <label class="field-label" for="strategy-text">
+          Describe your strategy in plain words, or write the rule directly.
+        </label>
+        <textarea id="strategy-text" rows="3" spellcheck="false"
+          placeholder="buy when the 50 day average crosses above the 200 day&#10;…or write it directly:  sma(50) > sma(200)"></textarea>
+        <div class="hint-row">
+          <span class="dim" id="strategy-feedback"></span>
+          <span class="spacer"></span>
+          <button class="ghost small" id="strategy-help">What can I write?</button>
+        </div>
+        <div class="help-box" id="strategy-help-box" hidden></div>
+      </div>
+
+      <div class="lab-panel" id="lab-preset" hidden>
+        <div class="preset-grid" id="preset-grid"></div>
+      </div>
+
+      <div class="lab-panel" id="lab-options" hidden>
+        <div class="preset-grid" id="option-grid"></div>
+      </div>
+
+      <div class="lab-panel" id="lab-diagnose" hidden>
+        <p class="dim">
+          Measure how a market has behaved — how much it moves, whether it trends
+          or drifts back, and how jagged its volatility is. These are descriptions,
+          not signals.
+        </p>
+      </div>
+
+      <div class="stack" id="lab-out"></div>
+    </section>
+
+    <!-- =========================== SETTINGS ========================= -->
+    <section class="view" id="view-settings">
+      <div class="stack" id="settings-out"></div>
+    </section>
+  </main>
+
+  <footer class="statusbar" id="statusbar">
+    <span id="status">Ready</span>
+    <span class="spacer"></span>
+    <span id="mode-badge" class="dim"></span>
+  </footer>
+</div>
+
+<script src="charts.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

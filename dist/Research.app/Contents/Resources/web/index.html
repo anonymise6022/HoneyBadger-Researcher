@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="graphite">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Research</title>
+  <link rel="stylesheet" href="theme.css" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="titlebar">
+      <span class="brand">Research</span>
+      <span class="tagline">evidence, not advice</span>
+      <span class="titlebar-spacer"></span>
+
+      <label class="chip" for="depth" style="border:none; padding-right:0;">Depth</label>
+      <select id="depth" title="How much the report explains as it goes"></select>
+
+      <label class="chip" for="theme" style="border:none; padding-right:0;">Theme</label>
+      <select id="theme" title="Colour scheme">
+        <option value="graphite">Graphite</option>
+        <option value="amber">Amber</option>
+        <option value="nord">Nord</option>
+        <option value="crimson">Crimson</option>
+        <option value="vellum">Vellum (light)</option>
+      </select>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-view="research" aria-selected="true">Research</button>
+      <button class="tab" role="tab" data-view="backtest" aria-selected="false">Backtest</button>
+      <button class="tab" role="tab" data-view="quant" aria-selected="false">
+        Quant<span class="alpha-dot" title="Experimental"></span>
+      </button>
+      <button class="tab" role="tab" data-view="settings" aria-selected="false">Settings</button>
+    </nav>
+
+    <div class="control-row" id="control-research">
+      <div class="prompt">
+        <span class="prompt-sigil">&gt;</span>
+        <input type="text" id="query" spellcheck="false" autocomplete="off"
+               placeholder="why did SPY fall today" />
+      </div>
+      <button class="primary" id="run">Run</button>
+    </div>
+
+    <div class="control-row" id="control-backtest" hidden>
+      <div class="prompt" style="max-width: 220px;">
+        <span class="prompt-sigil">$</span>
+        <input type="text" id="bt-ticker" spellcheck="false" autocomplete="off" placeholder="SPY" />
+      </div>
+      <select id="bt-strategy"></select>
+      <select id="bt-years">
+        <option value="5">5 years</option>
+        <option value="8">8 years</option>
+        <option value="12" selected>12 years</option>
+        <option value="20">20 years</option>
+      </select>
+      <button class="primary" id="run-backtest">Run</button>
+      <span class="titlebar-spacer"></span>
+      <span class="dim" id="bt-hint"></span>
+    </div>
+
+    <div class="control-row" id="control-quant" hidden>
+      <div class="prompt" style="max-width: 220px;">
+        <span class="prompt-sigil">σ</span>
+        <input type="text" id="q-ticker" spellcheck="false" autocomplete="off" placeholder="SPY" />
+      </div>
+      <button class="primary" id="run-quant">Analyse</button>
+      <span class="chip alpha">Experimental</span>
+    </div>
+
+    <div class="scanline" id="scanline"></div>
+
+    <main class="content">
+      <section class="view active" id="view-research">
+        <div class="stack" id="research-out"></div>
+      </section>
+      <section class="view" id="view-backtest">
+        <div class="stack" id="backtest-out"></div>
+      </section>
+      <section class="view" id="view-quant">
+        <div class="stack" id="quant-out"></div>
+      </section>
+      <section class="view" id="view-settings">
+        <div class="stack" id="settings-out"></div>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <span id="status">Ready</span>
+      <span class="titlebar-spacer"></span>
+      <span id="mode-badge" class="dim"></span>
+    </footer>
+  </div>
+
+  <script src="charts.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+/* Layout, components and motion.
+ *
+ * Motion principle: animation here exists to explain where something came
+ * from, never to entertain. Panels rise a few pixels as they fade in, so a
+ * result reads as arriving rather than blinking into place. Numbers count
+ * up, because a figure that settles draws the eye to itself once and then
+ * stops. Nothing bounces, nothing spins decoratively, and every duration is
+ * under 600ms so the interface never feels like it is making you wait for
+ * choreography.
+ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  font-variant-ligatures: none;
+}
+
+/* ============================ chrome ============================ */
+
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: var(--hairline) solid var(--line);
+  background: var(--surface);
+  /* Room for the macOS traffic lights, which sit over the content in a
+   * frameless window. */
+  padding-left: 88px;
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.titlebar > * { -webkit-app-region: no-drag; }
+
+.brand {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.brand::before {
+  content: "▸";
+  color: var(--accent);
+  margin-right: var(--space-2);
+  display: inline-block;
+  animation: pulse 3.2s var(--ease) infinite;
+}
+
+@keyframes pulse {
+  0%, 92%, 100% { opacity: 1; }
+  96% { opacity: 0.25; }
+}
+
+.tagline {
+  color: var(--text-faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.titlebar-spacer { flex: 1; }
+
+/* ============================ controls ============================ */
+
+.control-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: var(--hairline) solid var(--line);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.prompt {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--bg);
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius);
+  padding: 0 var(--space-3);
+  transition: border-color var(--duration-fast) var(--ease),
+              box-shadow var(--duration-fast) var(--ease);
+}
+
+.prompt:focus-within {
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+.prompt-sigil { color: var(--accent); flex-shrink: 0; user-select: none; }
+
+input[type="text"] {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: var(--space-3) 0;
+}
+
+input::placeholder { color: var(--text-faint); }
+
+select, button {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  outline: none;
+}
+
+select:hover, button:hover { border-color: var(--line-strong); background: var(--raised); }
+select:focus-visible, button:focus-visible { box-shadow: 0 0 0 3px var(--accent-wash); }
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  min-width: 78px;
+}
+
+button.primary:hover { filter: brightness(1.12); }
+button.primary:disabled, button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+button.ghost { background: transparent; }
+
+/* ============================ tabs ============================ */
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: 0 var(--space-5);
+  border-bottom: var(--hairline) solid var(--line);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: var(--space-3) var(--space-3);
+  color: var(--text-faint);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color var(--duration-fast) var(--ease),
+              border-color var(--duration-fast) var(--ease);
+}
+
+.tab:hover { color: var(--text-dim); background: transparent; }
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+
+.tab .alpha-dot {
+  display: inline-block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--warn);
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+/* ============================ scan line ============================ */
+
+/* A thin indeterminate sweep, shown only while work is in flight. A
+ * spinner would be more conventional; a sweep along the top edge reads as
+ * "the machine is working" without occupying the space where the answer
+ * is about to appear. */
+.scanline {
+  height: 2px;
+  background: var(--line);
+  overflow: hidden;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.scanline.active { opacity: 1; }
+
+.scanline::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: sweep 1.15s var(--ease) infinite;
+}
+
+@keyframes sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+/* ============================ content ============================ */
+
+.content { flex: 1; overflow-y: auto; padding: var(--space-5); }
+.content::-webkit-scrollbar { width: 10px; }
+.content::-webkit-scrollbar-track { background: transparent; }
+.content::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 5px;
+  border: 3px solid var(--bg);
+}
+
+.view { display: none; }
+.view.active { display: block; }
+
+.stack { display: flex; flex-direction: column; gap: var(--space-4); max-width: 1180px; }
+
+/* ============================ panels ============================ */
+
+.panel {
+  background: var(--surface);
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  animation: rise var(--duration-slow) var(--ease-out) backwards;
+}
+
+/* Staggered entry: each panel starts a beat after the one above, so the
+ * eye is led down the page in reading order instead of everything
+ * appearing at once. */
+.panel:nth-child(1) { animation-delay: 0ms; }
+.panel:nth-child(2) { animation-delay: 45ms; }
+.panel:nth-child(3) { animation-delay: 90ms; }
+.panel:nth-child(4) { animation-delay: 135ms; }
+.panel:nth-child(5) { animation-delay: 180ms; }
+.panel:nth-child(6) { animation-delay: 225ms; }
+.panel:nth-child(n + 7) { animation-delay: 270ms; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--hairline) solid var(--line);
+  background: var(--surface-2);
+}
+
+.panel-title {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.panel-body { padding: var(--space-4); }
+.panel-body > * + * { margin-top: var(--space-3); }
+
+.panel.accent { border-color: var(--accent-dim); }
+.panel.warn .panel-head { border-bottom-color: var(--warn); }
+.panel.alpha .panel-head { background: color-mix(in srgb, var(--warn) 10%, var(--surface-2)); }
+
+/* ============================ headline ============================ */
+
+.headline { display: flex; align-items: baseline; gap: var(--space-4); flex-wrap: wrap; }
+
+.ticker {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.headline-meta { color: var(--text-faint); font-size: 12px; }
+
+.delta { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.delta.up { color: var(--good); }
+.delta.down { color: var(--bad); }
+.delta.flat { color: var(--neutral); }
+
+.summary-text { color: var(--text-dim); max-width: 78ch; }
+
+/* ============================ stats ============================ */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+.stat {
+  background: var(--surface-2);
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+.stat-label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: var(--space-1);
+}
+
+.stat-value { font-size: 18px; font-variant-numeric: tabular-nums; }
+.stat-note { font-size: 11px; color: var(--text-faint); margin-top: var(--space-1); }
+
+/* ============================ tables ============================ */
+
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+
+th {
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-weight: 400;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--hairline) solid var(--line);
+}
+
+th.num, td.num { text-align: right; }
+
+td {
+  padding: var(--space-3);
+  border-bottom: var(--hairline) solid var(--line);
+  vertical-align: top;
+}
+
+tr:last-child td { border-bottom: none; }
+tbody tr { transition: background-color var(--duration-fast) var(--ease); }
+tbody tr:hover { background: var(--accent-wash); }
+
+.factor-label { color: var(--text); }
+.factor-what { color: var(--text-faint); font-size: 11.5px; margin-top: var(--space-1); }
+.dim { color: var(--text-faint); }
+
+/* ============================ chips ============================ */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  border: var(--hairline) solid var(--line-strong);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.chip.good { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, transparent); }
+.chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.chip.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.chip.alpha { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+
+/* ============================ bars ============================ */
+
+/* A hit rate is a proportion, so it gets a proportional mark. The base rate
+ * sits on the same track as a tick, which is the whole comparison the
+ * report is trying to make -- reading "72%" next to "55%" takes a moment,
+ * seeing the gap takes none. */
+.rate-track {
+  position: relative;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: var(--space-2);
+  border: var(--hairline) solid var(--line);
+}
+
+.rate-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--neutral);
+  border-radius: 3px;
+  width: 0;
+  transition: width var(--duration-slow) var(--ease-out);
+}
+
+.rate-fill.beats { background: var(--accent); }
+
+.rate-base {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--text-dim);
+  opacity: 0.85;
+}
+
+/* ============================ counterevidence ============================ */
+
+.counter { border-left: 2px solid var(--warn); padding-left: var(--space-3); }
+.counter + .counter { margin-top: var(--space-4); }
+.counter-label { color: var(--text); margin-bottom: var(--space-1); }
+.counter-detail { color: var(--text-dim); font-size: 12px; max-width: 80ch; }
+
+.bullets { list-style: none; }
+.bullets li { color: var(--text-dim); font-size: 12px; padding-left: var(--space-4); position: relative; }
+.bullets li + li { margin-top: var(--space-2); }
+.bullets li::before { content: "—"; position: absolute; left: 0; color: var(--text-faint); }
+
+/* ============================ chart ============================ */
+
+.chart { width: 100%; display: block; overflow: visible; }
+
+.chart-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-line.primary { stroke: var(--accent); }
+.chart-line.benchmark { stroke: var(--text-faint); stroke-dasharray: 5 4; }
+.chart-area { fill: var(--accent-wash); stroke: none; }
+.chart-grid { stroke: var(--line); stroke-width: 1; }
+.chart-axis-text { fill: var(--text-faint); font-size: 10px; font-family: var(--font-mono); }
+.chart-dd { fill: color-mix(in srgb, var(--bad) 22%, transparent); stroke: var(--bad); stroke-width: 1.2; }
+
+/* The line draws itself in. Purely decorative, but it makes a chart read as
+ * a measurement being taken rather than an image being pasted. */
+.chart-line.animate {
+  stroke-dasharray: var(--len);
+  stroke-dashoffset: var(--len);
+  animation: draw 900ms var(--ease-out) forwards;
+}
+
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+.legend { display: flex; gap: var(--space-4); font-size: 11px; color: var(--text-dim); margin-top: var(--space-2); }
+.legend-swatch { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: var(--space-2); }
+
+/* ============================ misc ============================ */
+
+.empty {
+  text-align: left;
+  color: var(--text-dim);
+  max-width: 62ch;
+  padding: var(--space-6) 0;
+}
+
+.empty h2 { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: var(--space-3); }
+.empty p + p { margin-top: var(--space-3); }
+
+.examples { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+
+.example {
+  font-size: 11.5px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--hairline) dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  background: transparent;
+  text-align: left;
+}
+
+.example:hover { color: var(--text); border-style: solid; border-color: var(--accent-dim); background: var(--accent-wash); }
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-5);
+  border-top: var(--hairline) solid var(--line);
+  background: var(--surface);
+  font-size: 11px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.status-ok { color: var(--good); }
+.status-bad { color: var(--bad); }
+
+.error-panel { border-color: var(--bad); }
+.error-panel .panel-head { background: color-mix(in srgb, var(--bad) 12%, var(--surface-2)); }
+
+.field-row { display: flex; gap: var(--space-2); align-items: center; }
+.field-row label { font-size: 11px; color: var(--text-faint); min-width: 140px; }
