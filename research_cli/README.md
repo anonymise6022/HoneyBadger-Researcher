@@ -81,8 +81,14 @@ python -m research_cli app --terminal  # the older in-terminal interface
 
 Built with pywebview over the system WebKit view, so the bundle carries no
 browser engine and text is rendered by the same engine as Safari. The window
-has four tabs (Research, Backtest, Quant, Settings), five colour themes, and
-three explanation depths.
+has four tabs (Ask, Explore, Lab, Settings), six colour themes, four
+typefaces — including an 8-bit terminal face carried inside the app — and
+three explanation depths. Theme, typeface and depth are remembered between
+launches.
+
+Hovering a candle on the Explore chart reads that session's open, high, low
+and close back exactly, rather than leaving them to be estimated against the
+axis.
 
 Rebuild it after changing anything:
 

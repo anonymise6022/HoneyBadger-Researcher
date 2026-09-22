@@ -19,6 +19,11 @@
     depth: "beginner",
     stage: "home",
     view: "ask",
+    // Whether anything has been asked yet. The home screen is a dead end
+    // until something has: there is no earlier place to go back to.
+    worked: false,
+    lastBars: null,
+    candlesStale: false,
     labMode: "build",
     strategies: [],
     optionStrategies: [],
@@ -47,11 +52,14 @@
     ["analyst", "Analyst"],
   ];
 
-  const EXAMPLES = [
-    "why did SPY fall today",
-    "why did Tesla drop yesterday",
-    "is Apple worth investing in",
-    "why did the stock market fall this week",
+  /* The typefaces offered in Settings. The ids match `data-font` in
+   * theme.css, which owns the stacks and any adjustment a face needs; this
+   * list only says what each one is called and why you might want it. */
+  const FONTS = [
+    ["system", "System Mono", "The default. Hinted by the OS, readable for hours."],
+    ["classic", "Classic Terminal", "Monaco and Courier — the older machine."],
+    ["pixel", "8-Bit Terminal", "Press Start 2P. Square pixels, no antialiasing."],
+    ["book", "Book", "Proportional, not monospaced. The easiest to read at length."],
   ];
 
   /* ------------------------------------------------------------ helpers */
@@ -708,6 +716,7 @@
       const r = await window.pywebview.api.price_bars(symbol, days);
       if (!r.ok) { $("explore-out").innerHTML = errorPanel(r.error, r.suggestion); return; }
       state.lastTicker = symbol;
+      state.lastBars = r.bars;
       $("explore-out").innerHTML = panel({
         title: "Price", extra: "accent",
         chip: r.synthetic ? '<span class="chip bad">synthetic</span>' : "",
@@ -756,6 +765,13 @@
            <div class="theme-note">${esc(note)}</div>
            <div class="theme-swatches" data-swatch="${id}"></div>
          </button>`).join("")}</div>` })}
+      ${panel({ title: "Typeface", body: `<div class="theme-grid">${FONTS.map(([id, name, note]) =>
+        `<button class="theme-card" data-font-id="${id}"
+                 aria-pressed="${document.documentElement.dataset.font === id}">
+           <div class="theme-name">${esc(name)}</div>
+           <div class="theme-note">${esc(note)}</div>
+           <div class="font-sample" data-face="${id}">AAPL 182.40 +1.2%</div>
+         </button>`).join("")}</div>` })}
       ${panel({ title: "API keys", body:
         `<p class="summary-text">Stored in a file, not an environment variable — an app opened
          from Finder doesn't inherit your shell.</p>
@@ -791,6 +807,9 @@
     document.querySelectorAll("[data-theme-id]").forEach((button) => {
       button.addEventListener("click", () => { applyTheme(button.dataset.themeId); renderSettings(); });
     });
+    document.querySelectorAll("[data-font-id]").forEach((button) => {
+      button.addEventListener("click", () => { applyFont(button.dataset.fontId); renderSettings(); });
+    });
     document.querySelectorAll("[data-save-key]").forEach((button) => {
       button.addEventListener("click", async () => {
         const name = button.dataset.saveKey;
@@ -805,18 +824,34 @@
 
   /* ---------------------------------------------------------- navigation */
 
+  function activateView(name) {
+    document.querySelectorAll(".view").forEach((v) =>
+      v.classList.toggle("active", v.id === `view-${name}`));
+  }
+
+  /** Move between the home screen and the working interface.
+   *
+   * The home screen is a view like any other, so entering the stage has to
+   * activate it. Changing `data-stage` alone only hid the title bar, which
+   * left whichever tab was open still on screen with nothing to navigate
+   * by: the tabs were gone, home had not appeared, and the only way out was
+   * to ask another question. Leaving the stage restores the tab you were on.
+   */
   function goStage(stage) {
     state.stage = stage;
     document.documentElement.dataset.stage = stage;
+    if (stage !== "home") state.worked = true;
+    activateView(stage === "home" ? "home" : state.view);
   }
 
   function showView(name) {
     state.view = name;
     document.querySelectorAll(".tab").forEach((t) =>
       t.setAttribute("aria-selected", String(t.dataset.view === name)));
-    document.querySelectorAll(".view").forEach((v) =>
-      v.classList.toggle("active", v.id === `view-${name}`));
+    if (state.stage === "home") goStage("working");
+    else activateView(name);
     if (name === "settings") renderSettings();
+    if (name === "explore" && state.candlesStale) requestAnimationFrame(redrawCandles);
     if (name === "lab" && !$("lab-ticker").value) $("lab-ticker").value = state.lastTicker;
   }
 
@@ -856,6 +891,30 @@
     try { localStorage.setItem("research.theme", name); } catch (_) { /* blocked storage */ }
   }
 
+  function applyFont(name) {
+    document.documentElement.dataset.font = name;
+    try { localStorage.setItem("research.font", name); } catch (_) { /* blocked storage */ }
+    // Charts set their axis labels in the computed font, and an SVG does not
+    // reflow the way text does, so the drawing has to be made again.
+    requestAnimationFrame(redrawCandles);
+  }
+
+  /** Draw the candle chart again, or mark it as owed a redraw.
+   *
+   * A chart inside a hidden tab measures zero wide, and drawing into that
+   * falls back to a default width -- producing an SVG built for a container
+   * it was never in, which is then stretched to fit when the tab is shown.
+   * Anything that invalidates the chart while it is off screen leaves this
+   * flag behind instead, and `showView` settles it on the way in.
+   */
+  function redrawCandles() {
+    const node = $("candle-chart");
+    if (!node || !state.lastBars) return;
+    if (!node.clientWidth) { state.candlesStale = true; return; }
+    state.candlesStale = false;
+    Charts.candles(node, { bars: state.lastBars });
+  }
+
   function applyDepth(depth) {
     state.depth = depth;
     document.documentElement.dataset.depth = depth;
@@ -872,7 +931,6 @@
       button.addEventListener("click", () => {
         applyDepth(button.dataset.depthOption);
         buildDepthSwitch($("depth-switch"));
-        buildDepthSwitch($("home-depth"));
         // Re-render so the layout, not just the wording, follows the level.
         if (state.stage === "working" && state.view === "ask" && $("query").value.trim()) {
           runAsk($("query").value);
@@ -958,26 +1016,25 @@
         const box = state.stage === "home" ? $("home-query") : $("query");
         box.focus(); box.select();
       }
+      // Going home is one click from anywhere; this is the way back, for a
+      // brand button pressed by accident with an answer still behind it.
+      if (e.key === "Escape" && state.stage === "home" && state.worked) goStage("working");
     });
   }
 
   ready().then(async () => {
-    let theme = "deep-field", depth = "beginner";
+    let theme = "deep-field", depth = "beginner", font = "system";
     try {
       theme = localStorage.getItem("research.theme") || theme;
       depth = localStorage.getItem("research.depth") || depth;
+      font = localStorage.getItem("research.font") || font;
     } catch (_) { /* storage unavailable; defaults stand */ }
     applyTheme(theme);
+    applyFont(font);
     state.depth = depth;
     applyDepth(depth);
 
-    $("home-examples").innerHTML = EXAMPLES.map((q) =>
-      `<button class="example" data-example="${esc(q)}">${esc(q)}</button>`).join("");
-    document.querySelectorAll("[data-example]").forEach((b) =>
-      b.addEventListener("click", () => runAsk(b.dataset.example)));
-
     buildDepthSwitch($("depth-switch"));
-    buildDepthSwitch($("home-depth"));
     wire();
     await loadBootstrap();
     setLabMode("build");

@@ -1,32 +1,38 @@
-/* Themes and the visual language.
+/* Themes and typefaces.
  *
- * The brief was "terminal-like, but not 8-bit". The distinction is real and
- * worth stating, because it drives every choice below.
+ * The brief was "terminal-like, but not 8-bit", and that still describes the
+ * default. Kept from a terminal: a monospaced face, a dark ground, dense
+ * information, hairline rules, uppercase micro-labels. Left out of the
+ * default: block-drawing characters, #0F0 on #000, and the CRT affectations
+ * that read as costume rather than instrument. The 8-bit face is now one of
+ * the typefaces on offer in Settings, because wanting the costume is a
+ * legitimate thing to want -- but it is chosen, never the thing you get.
  *
- * What is kept from a terminal: a monospaced face, a dark ground, dense
- * information, left-aligned rules, uppercase small labels, no decoration
- * that does not carry meaning.
+ * Each theme is a *pairing*, not a hue swap. The ground, the three ink
+ * levels and the accent are chosen together so that the accent lands at
+ * roughly the same perceived contrast against its own background in every
+ * theme -- which is what lets the same component read identically across all
+ * of them without per-theme overrides anywhere downstream.
  *
- * What is deliberately discarded: block-drawing characters, pure #000 on
- * pure #0F0, hard 1-bit edges, and the CRT affectations that read as
- * costume rather than instrument. Type is the system monospace, which on
- * macOS is SF Mono -- properly hinted and antialiased. Surfaces are layered
- * in three steps rather than outlined. Borders are hairlines at low
- * contrast. The result should look like a well-made measuring device, not
- * like a prop from a film about hacking.
- *
- * Every theme defines the same token names, so nothing downstream knows
- * which theme is active. Colours are declared as OKLCH-adjacent hex chosen
- * for roughly equal perceived lightness within a role, so switching theme
- * changes hue without changing which elements read as foreground.
+ * Every theme defines the same token names. Nothing outside this file knows
+ * which one is active.
  */
 
 :root {
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+  /* The typefaces on offer. Each is a complete stack, named once here so
+   * that the picker in Settings can preview a face without repeating it. */
+  --face-system: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
     "Liberation Mono", monospace;
+  --face-classic: Monaco, "Andale Mono", "Courier New", Courier, monospace;
+  --face-pixel: "Press Start 2P", Monaco, ui-monospace, monospace;
+  --face-book: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
 
-  --radius: 6px;
-  --radius-sm: 4px;
+  --font-mono: var(--face-system);
+  --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+
+  --radius: 8px;
+  --radius-sm: 5px;
+  --radius-lg: 14px;
   --hairline: 1px;
 
   --space-1: 4px;
@@ -36,149 +42,227 @@
   --space-5: 24px;
   --space-6: 32px;
   --space-7: 48px;
+  --space-8: 72px;
 
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --duration-fast: 120ms;
-  --duration: 260ms;
-  --duration-slow: 520ms;
+  --ease-spring: cubic-bezier(0.34, 1.26, 0.64, 1);
+  --duration-fast: 130ms;
+  --duration: 280ms;
+  --duration-slow: 560ms;
 }
 
-/* ---- Graphite: the default. Neutral, cool, low-drama. ---- */
-[data-theme="graphite"] {
-  --bg: #0d0f12;
-  --surface: #14171c;
-  --surface-2: #1b1f26;
-  --raised: #22272f;
-  --line: #262c35;
-  --line-strong: #333b47;
+/* ============================== typefaces =============================
+ *
+ * `data-font` on <html> swaps the face everywhere at once, because every
+ * rule downstream asks for `--font-mono` and nothing names a family
+ * directly. The 8-bit face carries the adjustments it needs with it: a
+ * pixel grid wants no antialiasing, no letter-spacing and more leading than
+ * a hinted face, or it turns to mush at small sizes. Its scale is handled
+ * in pixel-font.css by `size-adjust`, so no size anywhere else changes. */
 
-  --text: #e6e9ee;
-  --text-dim: #9aa3b0;
-  --text-faint: #6b7483;
+[data-font="classic"] { --font-mono: var(--face-classic); }
 
-  --accent: #5b9dff;
-  --accent-dim: #2f5f9e;
-  --accent-wash: rgba(91, 157, 255, 0.10);
+[data-font="pixel"] {
+  --font-mono: var(--face-pixel);
+  --font-sans: var(--face-pixel);
+}
+[data-font="pixel"] body {
+  -webkit-font-smoothing: none;
+  line-height: 1.9;
+}
+[data-font="pixel"] .home-title,
+[data-font="pixel"] .ticker,
+[data-font="pixel"] .story-lead,
+[data-font="pixel"] .delta { letter-spacing: 0; }
+[data-font="pixel"] .home-title { font-size: 34px; }
+[data-font="pixel"] .tab,
+[data-font="pixel"] .panel-title,
+[data-font="pixel"] .stat-label,
+[data-font="pixel"] .card-kicker,
+[data-font="pixel"] .readout-date { letter-spacing: 0.02em; }
+[data-font="pixel"] .chart-axis-text { font-size: 9px; }
 
-  --good: #3ecf8e;
-  --warn: #e8b45c;
-  --bad: #f2585b;
-  --neutral: #7c8595;
-
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.30);
+[data-font="book"] {
+  --font-mono: var(--face-book);
+  line-height: 1.7;
 }
 
-/* ---- Amber: the classic phosphor, warmed and de-saturated to stay legible ---- */
-[data-theme="amber"] {
-  --bg: #100c07;
-  --surface: #17120b;
-  --surface-2: #1f1810;
-  --raised: #281f14;
-  --line: #2d2416;
-  --line-strong: #3d3120;
+/* ---- Deep Field ---------------------------------------------------------
+ * Near-black with a blue cast and a cold cyan accent. The default: it gets
+ * out of the way, and cyan on blue-black is the highest-legibility pairing
+ * here without being loud.                                                */
+[data-theme="deep-field"] {
+  --bg: #080a0f;
+  --surface: #0f1219;
+  --surface-2: #161b25;
+  --raised: #1e2531;
+  --line: #1f2733;
+  --line-strong: #2f3a4a;
 
-  --text: #f2e3c8;
-  --text-dim: #b39d75;
-  --text-faint: #7d6c50;
+  --text: #e8edf5;
+  --text-dim: #93a1b5;
+  --text-faint: #5d6a7e;
+
+  --accent: #4fd6e8;
+  --accent-2: #7c8cff;
+  --accent-dim: #1f6b78;
+  --accent-wash: rgba(79, 214, 232, 0.09);
+
+  --good: #3ddc97;
+  --warn: #f5c86b;
+  --bad: #ff6b7a;
+  --neutral: #6b7891;
+  --glow: rgba(79, 214, 232, 0.22);
+}
+
+/* ---- Phosphor -----------------------------------------------------------
+ * The amber monitor, warmed and de-saturated until it is readable for an
+ * hour rather than impressive for a minute.                               */
+[data-theme="phosphor"] {
+  --bg: #0d0a06;
+  --surface: #14100a;
+  --surface-2: #1d1710;
+  --raised: #261e14;
+  --line: #2a2116;
+  --line-strong: #3d3123;
+
+  --text: #f4e6c9;
+  --text-dim: #b8a179;
+  --text-faint: #7f6f52;
 
   --accent: #ffb545;
-  --accent-dim: #9c6d24;
-  --accent-wash: rgba(255, 181, 69, 0.10);
+  --accent-2: #ff8c42;
+  --accent-dim: #8a5f1f;
+  --accent-wash: rgba(255, 181, 69, 0.09);
 
-  --good: #9fc54a;
+  --good: #b5c94a;
   --warn: #ffb545;
-  --bad: #e8623f;
-  --neutral: #8a7857;
-
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --bad: #ef6a45;
+  --neutral: #8c7a58;
+  --glow: rgba(255, 181, 69, 0.20);
 }
 
-/* ---- Nord: cool blue-grey, the calmest of the dark themes ---- */
-[data-theme="nord"] {
-  --bg: #20242c;
-  --surface: #272c36;
-  --surface-2: #2e343f;
-  --raised: #363d4a;
-  --line: #3a4150;
-  --line-strong: #4a5364;
+/* ---- Tidewater ----------------------------------------------------------
+ * Cool slate and sea-glass. The calmest of the set: lower contrast, softer
+ * accent, for long sessions.                                              */
+[data-theme="tidewater"] {
+  --bg: #121a1e;
+  --surface: #182227;
+  --surface-2: #1f2b31;
+  --raised: #26343b;
+  --line: #24323a;
+  --line-strong: #35474f;
 
-  --text: #e3e8f0;
-  --text-dim: #a5b0c2;
-  --text-faint: #78849a;
+  --text: #e0eaec;
+  --text-dim: #9db2b8;
+  --text-faint: #6d858d;
 
-  --accent: #88c0d0;
-  --accent-dim: #4d7d8c;
-  --accent-wash: rgba(136, 192, 208, 0.10);
+  --accent: #7ed4c0;
+  --accent-2: #5fb3d4;
+  --accent-dim: #35756a;
+  --accent-wash: rgba(126, 212, 192, 0.09);
 
-  --good: #a3be8c;
-  --warn: #ebcb8b;
-  --bad: #bf616a;
-  --neutral: #7b88a1;
-
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.22);
+  --good: #8fd48a;
+  --warn: #e8c37a;
+  --bad: #e07a7a;
+  --neutral: #7590 99;
+  --neutral: #759099;
+  --glow: rgba(126, 212, 192, 0.18);
 }
 
-/* ---- Crimson: dark with a red accent, for people who like a warmer signal ---- */
-[data-theme="crimson"] {
-  --bg: #0f0c0e;
-  --surface: #171316;
-  --surface-2: #1e191d;
-  --raised: #262024;
-  --line: #2a2328;
-  --line-strong: #3b3138;
+/* ---- Oxide --------------------------------------------------------------
+ * Charcoal and copper. Warmer than Deep Field without going amber; the
+ * accent reads as metal rather than as a warning.                         */
+[data-theme="oxide"] {
+  --bg: #0e0d0c;
+  --surface: #151312;
+  --surface-2: #1d1a18;
+  --raised: #262220;
+  --line: #272321;
+  --line-strong: #3a332f;
 
-  --text: #eee6ea;
-  --text-dim: #ab9ca4;
-  --text-faint: #786a72;
+  --text: #ece7e2;
+  --text-dim: #a89c93;
+  --text-faint: #746961;
 
-  --accent: #ff6b81;
-  --accent-dim: #9c3b4c;
-  --accent-wash: rgba(255, 107, 129, 0.10);
+  --accent: #e08a5f;
+  --accent-2: #c96a4a;
+  --accent-dim: #7d4830;
+  --accent-wash: rgba(224, 138, 95, 0.09);
 
-  --good: #4ec9a0;
-  --warn: #e8b45c;
-  --bad: #ff6b81;
-  --neutral: #8a7b83;
-
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.30);
+  --good: #7fc29b;
+  --warn: #e0b45f;
+  --bad: #e06666;
+  --neutral: #877b72;
+  --glow: rgba(224, 138, 95, 0.18);
 }
 
-/* ---- Vellum: light. Warm paper rather than clinical white, because a
- *      pure-white ground under a monospace face is glaring.              ---- */
+/* ---- Ultraviolet --------------------------------------------------------
+ * Near-black with violet and magenta. The loudest of the dark themes, and
+ * the accent is deliberately held to small elements so it stays a signal.  */
+[data-theme="ultraviolet"] {
+  --bg: #0a0812;
+  --surface: #110e1c;
+  --surface-2: #181426;
+  --raised: #211b33;
+  --line: #221c36;
+  --line-strong: #342a4d;
+
+  --text: #eae6f7;
+  --text-dim: #a49bc4;
+  --text-faint: #6f6690;
+
+  --accent: #a68bff;
+  --accent-2: #ff7ad1;
+  --accent-dim: #5b4499;
+  --accent-wash: rgba(166, 139, 255, 0.10);
+
+  --good: #4fd6a0;
+  --warn: #f0c46a;
+  --bad: #ff6f91;
+  --neutral: #7d749b;
+  --glow: rgba(166, 139, 255, 0.22);
+}
+
+/* ---- Vellum -------------------------------------------------------------
+ * The light theme. Warm paper rather than clinical white: a pure-white
+ * ground under a monospace face is glaring at any length.                  */
 [data-theme="vellum"] {
-  --bg: #f4f1ea;
-  --surface: #faf8f3;
-  --surface-2: #f0ece3;
+  --bg: #f3efe7;
+  --surface: #faf7f1;
+  --surface-2: #efeae0;
   --raised: #ffffff;
-  --line: #ddd7cb;
-  --line-strong: #c4bcab;
+  --line: #dcd5c8;
+  --line-strong: #bfb6a5;
 
-  --text: #1e1c18;
-  --text-dim: #5c574d;
-  --text-faint: #8a8376;
+  --text: #1c1a16;
+  --text-dim: #57534a;
+  --text-faint: #867f72;
 
-  --accent: #2f6ab8;
-  --accent-dim: #8fb0dc;
-  --accent-wash: rgba(47, 106, 184, 0.08);
+  --accent: #2b6cb8;
+  --accent-2: #9a5bb5;
+  --accent-dim: #8fb2dc;
+  --accent-wash: rgba(43, 108, 184, 0.07);
 
   --good: #1d7a54;
-  --warn: #9a6b12;
+  --warn: #96690f;
   --bad: #b3392f;
-  --neutral: #6f695c;
-
-  --shadow: 0 1px 2px rgba(60, 50, 30, 0.08), 0 8px 24px rgba(60, 50, 30, 0.08);
+  --neutral: #6c675c;
+  --glow: rgba(43, 108, 184, 0.14);
 }
 
-/* Theme changes animate, so switching does not flash. Deliberately limited
- * to colour properties: transitioning `all` would also animate layout and
- * make every re-render jitter. */
+/* Theme changes animate so switching does not flash. Scoped to colour
+ * properties only: transitioning `all` would also animate layout and make
+ * every render jitter. */
 body,
 .panel,
 .stat,
 .chip,
+.card,
 input,
 select,
+textarea,
 button {
   transition:
     background-color var(--duration) var(--ease),
@@ -186,9 +270,9 @@ button {
     color var(--duration) var(--ease);
 }
 
-/* Anyone who has asked their OS to reduce motion gets no motion. This is
- * not optional politeness -- vestibular triggers are a real accessibility
- * failure, and the animations here are decorative. */
+/* Anyone who has asked their OS to reduce motion gets none. Not politeness:
+ * vestibular triggers are a real accessibility failure and every animation
+ * here is decorative. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

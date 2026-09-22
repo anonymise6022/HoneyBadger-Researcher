@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Research</title>
+  <link rel="stylesheet" href="pixel-font.css" />
   <link rel="stylesheet" href="theme.css" />
   <link rel="stylesheet" href="app.css" />
 </head>
@@ -29,22 +30,20 @@
 
   <main class="content" id="content">
 
-    <!-- ============================ HOME ============================ -->
+    <!-- ============================ HOME ============================
+         A wordmark and a box. Everything that was here besides those --
+         the description, the worked examples, a second copy of the depth
+         switch -- was text explaining an interface you can only enter one
+         way, and the title bar carries the same controls the moment you
+         ask anything. -->
     <section class="view active" id="view-home">
       <div class="home">
         <h1 class="home-title">Research</h1>
-        <p class="home-sub">
-          Find out what moved a stock, or what a company's numbers look like.
-          You'll get evidence you can check — never a guess dressed up as an answer.
-        </p>
         <div class="home-prompt">
           <input type="text" id="home-query" spellcheck="false" autocomplete="off"
-                 placeholder="Ask why a stock moved, or whether a company is worth a look…" />
+                 placeholder="Ask about a stock" />
           <button id="home-go" aria-label="Ask">→</button>
         </div>
-        <div class="home-examples" id="home-examples"></div>
-        <div class="home-depth" id="home-depth" role="radiogroup"
-             aria-label="How much should it explain?"></div>
       </div>
     </section>
 

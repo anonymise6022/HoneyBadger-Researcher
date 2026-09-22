@@ -1,4 +1,5 @@
-('/Users/kekyoing/Trading bot/build/Research/Research.pkg',
+('/Users/kekyoing/Trading '
+ 'bot/HoneyBadger-Researcher/build/Research/Research.pkg',
  {'BINARY': True,
   'DATA': True,
   'EXECUTABLE': True,
@@ -10,7 +11,8 @@
   'SYMLINK': False},
  [('pyi-contents-directory _internal', '', 'OPTION'),
   ('PYZ-00.pyz',
-   '/Users/kekyoing/Trading bot/build/Research/PYZ-00.pyz',
+   '/Users/kekyoing/Trading '
+   'bot/HoneyBadger-Researcher/build/Research/PYZ-00.pyz',
    'PYZ'),
   ('python3.13/lib-dynload/_struct.cpython-313-darwin.so',
    '/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/lib-dynload/_struct.cpython-313-darwin.so',
@@ -19,52 +21,42 @@
    '/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/lib-dynload/zlib.cpython-313-darwin.so',
    'EXTENSION'),
   ('struct',
-   '/Users/kekyoing/Trading bot/build/Research/localpycs/struct.pyc',
+   '/Users/kekyoing/Trading '
+   'bot/HoneyBadger-Researcher/build/Research/localpycs/struct.pyc',
    'PYMODULE'),
   ('pyimod01_archive',
-   '/Users/kekyoing/Trading bot/build/Research/localpycs/pyimod01_archive.pyc',
+   '/Users/kekyoing/Trading '
+   'bot/HoneyBadger-Researcher/build/Research/localpycs/pyimod01_archive.pyc',
    'PYMODULE'),
   ('pyimod02_importers',
    '/Users/kekyoing/Trading '
-   'bot/build/Research/localpycs/pyimod02_importers.pyc',
+   'bot/HoneyBadger-Researcher/build/Research/localpycs/pyimod02_importers.pyc',
    'PYMODULE'),
   ('pyimod03_ctypes',
-   '/Users/kekyoing/Trading bot/build/Research/localpycs/pyimod03_ctypes.pyc',
+   '/Users/kekyoing/Trading '
+   'bot/HoneyBadger-Researcher/build/Research/localpycs/pyimod03_ctypes.pyc',
    'PYMODULE'),
   ('pyiboot01_bootstrap',
-   '/Users/kekyoing/Trading '
-   'bot/.venv/lib/python3.13/site-packages/PyInstaller/loader/pyiboot01_bootstrap.py',
-   'PYSOURCE'),
-  ('pyi_rth_pkgutil',
-   '/Users/kekyoing/Trading '
-   'bot/.venv/lib/python3.13/site-packages/PyInstaller/hooks/rthooks/pyi_rth_pkgutil.py',
-   'PYSOURCE'),
-  ('pyi_rth_setuptools',
-   '/Users/kekyoing/Trading '
-   'bot/.venv/lib/python3.13/site-packages/PyInstaller/hooks/rthooks/pyi_rth_setuptools.py',
-   'PYSOURCE'),
-  ('pyi_rth_pkgres',
-   '/Users/kekyoing/Trading '
-   'bot/.venv/lib/python3.13/site-packages/PyInstaller/hooks/rthooks/pyi_rth_pkgres.py',
-   'PYSOURCE'),
-  ('pyi_rth_multiprocessing',
-   '/Users/kekyoing/Trading '
-   'bot/.venv/lib/python3.13/site-packages/PyInstaller/hooks/rthooks/pyi_rth_multiprocessing.py',
+   '/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PyInstaller/loader/pyiboot01_bootstrap.py',
    'PYSOURCE'),
   ('pyi_rth_inspect',
-   '/Users/kekyoing/Trading '
-   'bot/.venv/lib/python3.13/site-packages/PyInstaller/hooks/rthooks/pyi_rth_inspect.py',
+   '/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PyInstaller/hooks/rthooks/pyi_rth_inspect.py',
    'PYSOURCE'),
-  ('pyi_rth_mplconfig',
-   '/Users/kekyoing/Trading '
-   'bot/.venv/lib/python3.13/site-packages/PyInstaller/hooks/rthooks/pyi_rth_mplconfig.py',
+  ('pyi_rth_pkgutil',
+   '/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PyInstaller/hooks/rthooks/pyi_rth_pkgutil.py',
+   'PYSOURCE'),
+  ('pyi_rth_multiprocessing',
+   '/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PyInstaller/hooks/rthooks/pyi_rth_multiprocessing.py',
+   'PYSOURCE'),
+  ('pyi_rth_setuptools',
+   '/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PyInstaller/hooks/rthooks/pyi_rth_setuptools.py',
    'PYSOURCE'),
   ('pyi_rth_cryptography_openssl',
-   '/Users/kekyoing/Trading '
-   'bot/.venv/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/rthooks/pyi_rth_cryptography_openssl.py',
+   '/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/_pyinstaller_hooks_contrib/rthooks/pyi_rth_cryptography_openssl.py',
    'PYSOURCE'),
   ('launcher',
-   '/Users/kekyoing/Trading bot/research_cli/desktop/launcher.py',
+   '/Users/kekyoing/Trading '
+   'bot/HoneyBadger-Researcher/research_cli/desktop/launcher.py',
    'PYSOURCE')],
  'Python',
  True,

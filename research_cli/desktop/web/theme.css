@@ -1,10 +1,12 @@
-/* Themes.
+/* Themes and typefaces.
  *
- * The brief was "terminal-like, but not 8-bit", and the distinction drives
- * every choice here. Kept from a terminal: a monospaced face, a dark ground,
- * dense information, hairline rules, uppercase micro-labels. Discarded:
- * block-drawing characters, #0F0 on #000, and the CRT affectations that read
- * as costume rather than instrument.
+ * The brief was "terminal-like, but not 8-bit", and that still describes the
+ * default. Kept from a terminal: a monospaced face, a dark ground, dense
+ * information, hairline rules, uppercase micro-labels. Left out of the
+ * default: block-drawing characters, #0F0 on #000, and the CRT affectations
+ * that read as costume rather than instrument. The 8-bit face is now one of
+ * the typefaces on offer in Settings, because wanting the costume is a
+ * legitimate thing to want -- but it is chosen, never the thing you get.
  *
  * Each theme is a *pairing*, not a hue swap. The ground, the three ink
  * levels and the accent are chosen together so that the accent lands at
@@ -17,8 +19,15 @@
  */
 
 :root {
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+  /* The typefaces on offer. Each is a complete stack, named once here so
+   * that the picker in Settings can preview a face without repeating it. */
+  --face-system: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
     "Liberation Mono", monospace;
+  --face-classic: Monaco, "Andale Mono", "Courier New", Courier, monospace;
+  --face-pixel: "Press Start 2P", Monaco, ui-monospace, monospace;
+  --face-book: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+
+  --font-mono: var(--face-system);
   --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
 
   --radius: 8px;
@@ -41,6 +50,42 @@
   --duration-fast: 130ms;
   --duration: 280ms;
   --duration-slow: 560ms;
+}
+
+/* ============================== typefaces =============================
+ *
+ * `data-font` on <html> swaps the face everywhere at once, because every
+ * rule downstream asks for `--font-mono` and nothing names a family
+ * directly. The 8-bit face carries the adjustments it needs with it: a
+ * pixel grid wants no antialiasing, no letter-spacing and more leading than
+ * a hinted face, or it turns to mush at small sizes. Its scale is handled
+ * in pixel-font.css by `size-adjust`, so no size anywhere else changes. */
+
+[data-font="classic"] { --font-mono: var(--face-classic); }
+
+[data-font="pixel"] {
+  --font-mono: var(--face-pixel);
+  --font-sans: var(--face-pixel);
+}
+[data-font="pixel"] body {
+  -webkit-font-smoothing: none;
+  line-height: 1.9;
+}
+[data-font="pixel"] .home-title,
+[data-font="pixel"] .ticker,
+[data-font="pixel"] .story-lead,
+[data-font="pixel"] .delta { letter-spacing: 0; }
+[data-font="pixel"] .home-title { font-size: 34px; }
+[data-font="pixel"] .tab,
+[data-font="pixel"] .panel-title,
+[data-font="pixel"] .stat-label,
+[data-font="pixel"] .card-kicker,
+[data-font="pixel"] .readout-date { letter-spacing: 0.02em; }
+[data-font="pixel"] .chart-axis-text { font-size: 9px; }
+
+[data-font="book"] {
+  --font-mono: var(--face-book);
+  line-height: 1.7;
 }
 
 /* ---- Deep Field ---------------------------------------------------------

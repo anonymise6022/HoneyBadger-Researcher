@@ -45,6 +45,7 @@ body {
 [data-stage="home"] .scanline { display: none; }
 
 [data-stage="home"] .content { padding: 0; overflow: hidden; }
+[data-stage="home"] #view-home { height: 100%; }
 
 /* ============================== titlebar ============================== */
 
@@ -130,12 +131,6 @@ body {
 }
 @keyframes caret { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
 
-.home-sub {
-  max-width: 54ch; text-align: center; color: var(--text-dim);
-  font-size: 13px; line-height: 1.75;
-  animation: rise-in 700ms var(--ease-out) 90ms backwards;
-}
-
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -166,27 +161,6 @@ body {
   transition: filter var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
 }
 .home-prompt button:hover { filter: brightness(1.14); transform: translateX(1px); }
-
-.home-examples {
-  display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center;
-  max-width: 640px; animation: rise-in 700ms var(--ease-out) 250ms backwards;
-}
-.example {
-  background: transparent; border: var(--hairline) solid var(--line);
-  border-radius: 999px; padding: 5px var(--space-3);
-  color: var(--text-faint); font-family: var(--font-mono); font-size: 11.5px;
-  cursor: pointer;
-  transition: color var(--duration-fast) var(--ease),
-              border-color var(--duration-fast) var(--ease),
-              background-color var(--duration-fast) var(--ease);
-}
-.example:hover { color: var(--text); border-color: var(--accent-dim); background: var(--accent-wash); }
-
-.home-depth {
-  display: flex; gap: var(--space-2); margin-top: var(--space-5);
-  animation: rise-in 700ms var(--ease-out) 330ms backwards;
-}
-.home-depth .depth-option { border: var(--hairline) solid var(--line); border-radius: 999px; }
 
 /* ============================== controls ============================= */
 
@@ -433,6 +407,37 @@ tbody tr:hover { background: var(--accent-wash); }
 .candle.down { fill: var(--bad); stroke: var(--bad); }
 .candle.wick { stroke-width: 1; }
 
+/* Hovering a candle: the band says which session is being read, the rule
+ * carries its close across to the axis, and the readout gives the four
+ * prices exactly. The wrapper is positioned because the readout is an HTML
+ * box over the drawing rather than SVG text -- text that has to stay
+ * upright, wrap and take the theme's own type is not worth drawing by hand. */
+.chart-hoverable { position: relative; }
+.candle-marks { transition: opacity var(--duration-fast) var(--ease); }
+.candle-band { fill: var(--accent); fill-opacity: 0.1; }
+.candle-close-rule { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.75; }
+.candle-columns { cursor: crosshair; }
+
+.chart-readout {
+  position: absolute; z-index: 3; pointer-events: none;
+  background: var(--raised); border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.34);
+  font-size: 11px; line-height: 1.55; white-space: nowrap;
+}
+.readout-date {
+  color: var(--text-faint); font-size: 10px; letter-spacing: 0.08em;
+  padding-bottom: 4px; margin-bottom: 4px;
+  border-bottom: var(--hairline) solid var(--line);
+}
+.readout-grid {
+  display: grid; grid-template-columns: auto auto; gap: 1px var(--space-4);
+  color: var(--text-dim);
+}
+.readout-value { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.readout-value.up { color: var(--good); }
+.readout-value.down { color: var(--bad); }
+
 .bar-track { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; }
 .bar-fill { fill: var(--neutral); transition: width var(--duration-slow) var(--ease-out); }
 .bar-fill.highlight { fill: var(--accent); }
@@ -536,3 +541,17 @@ tbody tr:hover { background: var(--accent-wash); }
 .theme-note { font-size: 10.5px; color: var(--text-faint); line-height: 1.5; }
 .theme-swatches { display: flex; gap: 3px; margin-top: var(--space-2); }
 .theme-swatch { width: 100%; height: 14px; border-radius: 3px; }
+
+/* Each typeface previews itself, in the same figures the interface is full
+ * of. A name for a face nobody has seen is not a choice. */
+.font-sample {
+  margin-top: var(--space-2); padding-top: var(--space-2);
+  border-top: var(--hairline) solid var(--line);
+  color: var(--text); font-size: 12px; overflow: hidden; text-overflow: ellipsis;
+}
+.font-sample[data-face="system"] { font-family: var(--face-system); }
+.font-sample[data-face="classic"] { font-family: var(--face-classic); }
+.font-sample[data-face="book"] { font-family: var(--face-book); }
+.font-sample[data-face="pixel"] {
+  font-family: var(--face-pixel); letter-spacing: 0; -webkit-font-smoothing: none;
+}

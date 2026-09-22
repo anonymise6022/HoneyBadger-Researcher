@@ -157,9 +157,32 @@ const Charts = (() => {
 
   /* ------------------------------------------------------- candlestick */
 
-  /** OHLC candles, for the Explore tab where the bar shape is the point. */
+  /** Enough decimals to be exact for the instrument, and no more. */
+  function priceText(value) {
+    if (value == null || !Number.isFinite(value)) return "n/a";
+    const size = Math.abs(value);
+    return value.toFixed(size >= 1 ? 2 : size >= 0.01 ? 4 : 6);
+  }
+
+  /** The readout is the one place here that builds markup from data. */
+  function safe(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[c]);
+  }
+
+  /**
+   * OHLC candles, for the Explore tab where the bar shape is the point.
+   *
+   * A candle states four prices as a shape, and a shape can be read to
+   * within a few pixels at best. The open and the close are the two figures
+   * people actually want off a chart, so hovering a session reads them back
+   * exactly -- with the high, the low and the move across the session --
+   * rather than leaving them to be guessed against the axis.
+   */
   function candles(container, { bars, height = 320 }) {
     container.innerHTML = "";
+    container.classList.remove("chart-hoverable");
     if (!bars || bars.length < 2) {
       container.innerHTML = '<div class="chart-empty">Not enough data to draw this.</div>';
       return;
@@ -177,6 +200,7 @@ const Charts = (() => {
 
     const slot = (width - pad.left - pad.right) / bars.length;
     const body = Math.max(1, Math.min(slot * 0.68, 11));
+    const plot = height - pad.top - pad.bottom;
     bars.forEach((bar, i) => {
       const x = scale.x(i, bars.length);
       const rising = bar.c >= bar.o;
@@ -191,7 +215,93 @@ const Charts = (() => {
         height: Math.max(bottom - top, 1), class: klass, rx: 1,
       }));
     });
+
+    // The hover marks: a band naming the session being read, and a rule at
+    // its close so the figure in the readout can be placed against the axis.
+    // Drawn after the candles and inert to the mouse, so they neither need a
+    // second pass nor interrupt hit testing.
+    const band = el("rect", {
+      class: "candle-band", x: -slot, y: pad.top,
+      width: Math.max(slot, 2), height: plot,
+    });
+    const closeRule = el("line", {
+      class: "candle-close-rule", x1: pad.left, x2: width - pad.right, y1: 0, y2: 0,
+    });
+    const marks = el("g", { class: "candle-marks", "pointer-events": "none", opacity: 0 });
+    marks.appendChild(band);
+    marks.appendChild(closeRule);
+    svg.appendChild(marks);
+
+    // One transparent column per session, tiling the plot so every position
+    // inside it belongs to exactly one candle. Letting the browser hit-test
+    // these is simpler than mapping the pointer back through the viewBox by
+    // hand, and it stays correct when the SVG is scaled to a container that
+    // is no longer the width it was drawn at.
+    const columns = el("g", { class: "candle-columns" });
+    bars.forEach((bar, i) => {
+      columns.appendChild(el("rect", {
+        x: scale.x(i, bars.length) - slot / 2, y: pad.top, width: slot,
+        height: plot, fill: "transparent", "data-index": i,
+      }));
+    });
+    svg.appendChild(columns);
     container.appendChild(svg);
+
+    const readout = document.createElement("div");
+    readout.className = "chart-readout";
+    readout.hidden = true;
+    container.appendChild(readout);
+    container.classList.add("chart-hoverable");
+
+    const hide = () => {
+      readout.hidden = true;
+      marks.setAttribute("opacity", 0);
+    };
+
+    const show = (event) => {
+      const column = event.target.closest && event.target.closest("[data-index]");
+      if (!column) return hide();
+      const bar = bars[Number(column.getAttribute("data-index"))];
+      if (!bar) return hide();
+
+      const move = bar.o ? (bar.c / bar.o - 1) * 100 : null;
+      const way = bar.c >= bar.o ? "up" : "down";
+      band.setAttribute("x", column.getAttribute("x"));
+      closeRule.setAttribute("y1", scale.y(bar.c).toFixed(2));
+      closeRule.setAttribute("y2", scale.y(bar.c).toFixed(2));
+      marks.setAttribute("opacity", 1);
+
+      readout.innerHTML = `
+        <div class="readout-date">${safe(bar.d)}</div>
+        <div class="readout-grid">
+          <span>Open</span><span class="readout-value">${priceText(bar.o)}</span>
+          <span>High</span><span class="readout-value">${priceText(bar.h)}</span>
+          <span>Low</span><span class="readout-value">${priceText(bar.l)}</span>
+          <span>Close</span><span class="readout-value ${way}">${priceText(bar.c)}</span>
+          <span>Change</span><span class="readout-value ${way}">${
+            move == null ? "n/a" : `${move >= 0 ? "+" : ""}${move.toFixed(2)}%`
+          }</span>
+        </div>`;
+      readout.hidden = false;
+
+      // Positioned from the column's own rendered box rather than from SVG
+      // coordinates, which is the same reason the columns exist: it holds
+      // whatever scale the drawing ends up at. Sides flip near the right
+      // edge so the box never leaves the chart.
+      const frame = container.getBoundingClientRect();
+      const box = column.getBoundingClientRect();
+      const centre = box.left - frame.left + box.width / 2;
+      const gap = 14;
+      const wide = centre + gap + readout.offsetWidth > frame.width;
+      const left = wide ? centre - gap - readout.offsetWidth : centre + gap;
+      const top = event.clientY - frame.top - readout.offsetHeight / 2;
+      const clamp = (v, hi) => Math.max(4, Math.min(v, hi - 4));
+      readout.style.left = `${clamp(left, frame.width - readout.offsetWidth)}px`;
+      readout.style.top = `${clamp(top, frame.height - readout.offsetHeight)}px`;
+    };
+
+    svg.addEventListener("mousemove", show);
+    svg.addEventListener("mouseleave", hide);
   }
 
   /* ------------------------------------------------------------ bars */
