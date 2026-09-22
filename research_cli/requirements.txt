@@ -11,6 +11,13 @@ rich              # terminal formatting
 pydantic          # EvidenceBundle schema + validation
 pytest            # tests
 
-# Only needed for `--llm`. Without it (or without credentials) the tool
-# falls back to the plain-text template, which is a supported path.
+# Only needed for `--llm`. Without either of these (or without credentials)
+# the tool falls back to the plain-text template, which is a supported path.
 anthropic
+
+# Writes the same reports on a model running on this machine: no key, no
+# network, nothing leaves the laptop. The marker is not optional -- MLX is
+# Apple Silicon only, and an unguarded requirement would break `pip install`
+# everywhere else. The weights are fetched separately, on request, because
+# four gigabytes does not belong in a requirements file.
+mlx-lm ; sys_platform == "darwin" and platform_machine == "arm64"

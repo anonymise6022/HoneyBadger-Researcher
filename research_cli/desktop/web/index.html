@@ -17,6 +17,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" data-view="ask" aria-selected="true">Ask</button>
       <button class="tab" role="tab" data-view="explore" aria-selected="false">Explore</button>
+      <button class="tab" role="tab" data-view="options" aria-selected="false">Options</button>
       <button class="tab" role="tab" data-view="lab" aria-selected="false">
         Lab<span class="alpha-dot" title="Includes experimental models"></span>
       </button>
@@ -80,13 +81,67 @@
       <div class="stack" id="explore-out"></div>
     </section>
 
+    <!-- =========================== OPTIONS ==========================
+         A trading screen, not a research one. The chain is the centre of
+         it; everything else -- the ticket, the greeks, the blotter --
+         hangs off whichever contract is selected in it. -->
+    <section class="view" id="view-options">
+      <div class="control-row">
+        <div class="prompt" style="max-width:220px;">
+          <span class="prompt-sigil">$</span>
+          <input type="text" id="opt-ticker" spellcheck="false" autocomplete="off" placeholder="AAPL" />
+        </div>
+        <select id="opt-expiry" aria-label="Expiry"></select>
+        <button class="ghost small" id="opt-refresh" title="Fetch the chain again">Refresh</button>
+        <span class="spacer"></span>
+        <div class="account-strip" id="opt-account-strip"></div>
+      </div>
+
+      <div class="stack" id="options-out">
+        <section class="panel accent" id="opt-chain-panel">
+          <div class="panel-head">
+            <span class="panel-title">Chain</span>
+            <span id="opt-chain-chip"></span>
+          </div>
+          <div class="panel-body">
+            <div id="opt-chain-head" class="chain-head"></div>
+            <div class="chain-scroll"><table class="chain" id="opt-chain"></table></div>
+          </div>
+        </section>
+
+        <section class="panel" id="opt-contract-panel" hidden>
+          <div class="panel-head">
+            <span class="panel-title" id="opt-contract-title">Contract</span>
+            <span id="opt-contract-chip"></span>
+          </div>
+          <div class="panel-body" id="opt-contract-body"></div>
+        </section>
+
+        <section class="panel" id="opt-positions-panel">
+          <div class="panel-head">
+            <span class="panel-title">Positions</span>
+            <span id="opt-exposure-chip"></span>
+          </div>
+          <div class="panel-body" id="opt-positions"></div>
+        </section>
+
+        <section class="panel" id="opt-activity-panel">
+          <div class="panel-head">
+            <span class="panel-title">Activity</span>
+            <button class="ghost small" id="opt-reset">Reset the account</button>
+          </div>
+          <div class="panel-body" id="opt-activity"></div>
+        </section>
+      </div>
+    </section>
+
     <!-- ============================= LAB ============================ -->
     <section class="view" id="view-lab">
       <div class="lab-head">
         <div class="lab-tabs" role="tablist">
           <button class="lab-tab" data-lab="build" aria-selected="true">Build a strategy</button>
           <button class="lab-tab" data-lab="preset" aria-selected="false">Ready-made</button>
-          <button class="lab-tab" data-lab="options" aria-selected="false">Options</button>
+          <button class="lab-tab" data-lab="options" aria-selected="false">Option overlays</button>
           <button class="lab-tab" data-lab="diagnose" aria-selected="false">Diagnose a market</button>
         </div>
       </div>
@@ -125,6 +180,11 @@
       </div>
 
       <div class="lab-panel" id="lab-options" hidden>
+        <p class="dim">
+          Historical tests of an option strategy run and rolled over many years —
+          which is what the years selector above is for. To buy or sell actual
+          contracts at today's prices, use the <strong>Options</strong> tab.
+        </p>
         <div class="preset-grid" id="option-grid"></div>
       </div>
 

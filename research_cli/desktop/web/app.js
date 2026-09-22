@@ -24,6 +24,10 @@
     worked: false,
     lastBars: null,
     candlesStale: false,
+    options: {
+      ticker: null, expiry: null, chain: null, contract: null,
+      side: "buy", contracts: 1, account: null, timer: null,
+    },
     labMode: "build",
     strategies: [],
     optionStrategies: [],
@@ -735,6 +739,7 @@
             <button class="ghost small" data-act="ask">Why did it move?</button>
             <button class="ghost small" data-act="snapshot">Is it worth a look?</button>
             <button class="ghost small" data-act="lab">Test a strategy on it</button>
+            <button class="ghost small" data-act="options">Trade options on it</button>
           </div>`,
       });
       requestAnimationFrame(() => {
@@ -747,11 +752,479 @@
           const act = b.dataset.act;
           if (act === "ask") runAsk(`why did ${symbol} move today`);
           else if (act === "snapshot") runAsk(`is ${symbol} good to invest`);
+          else if (act === "options") { showView("options"); loadOptionExpiries(symbol); }
           else { $("lab-ticker").value = symbol; showView("lab"); }
         });
       });
       setStatus(`${r.bars.length} sessions`, "ok");
     } finally { setBusy(false); }
+  }
+
+  /* --------------------------------------------------------- options desk */
+  /*
+   * A brokerage screen, and it is organised the way one is: the chain is the
+   * document, and the ticket, the greeks and the blotter are all views onto
+   * whichever contract is selected in it.
+   *
+   * Everything shown as money comes from the Python side, including the cost
+   * of an order, which is quoted by the account before it is placed rather
+   * than multiplied out here. An order ticket that disagrees with the fill by
+   * a commission is the sort of detail that destroys trust in a paper desk,
+   * and the only way to guarantee it cannot happen is to have one
+   * implementation of the arithmetic.
+   */
+
+  const OPTION_REFRESH_MS = 45_000;
+
+  const usd = (value, decimals = 2) => {
+    if (value == null) return "n/a";
+    const body = Math.abs(value).toLocaleString(undefined, {
+      minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+    });
+    return `${value < 0 ? "-" : ""}$${body}`;
+  };
+  const signedUsd = (value, decimals = 2) =>
+    value == null ? "n/a" : `${value >= 0 ? "+" : "-"}$${Math.abs(value).toLocaleString(undefined,
+      { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+  const num = (value, decimals = 2) => (value == null ? "—" : value.toFixed(decimals));
+  const ivText = (value) => (value == null ? "—" : `${(value * 100).toFixed(1)}%`);
+  const countText = (value) => (value == null ? "—" : value.toLocaleString());
+
+  function optionsBusy(busy, message) {
+    $("scanline").classList.toggle("active", busy);
+    if (message !== undefined) setStatus(message);
+  }
+
+  /** Load the expiries for a symbol, then the chain for one of them. */
+  async function loadOptionExpiries(ticker, keepExpiry) {
+    const symbol = (ticker || "").trim().toUpperCase();
+    if (!symbol) return;
+    state.options.ticker = symbol;
+    $("opt-ticker").value = symbol;
+    optionsBusy(true, `Loading ${symbol} chains…`);
+    try {
+      const r = await window.pywebview.api.option_expiries(symbol);
+      if (!r.ok) {
+        $("options-out").querySelector("#opt-chain .chain-error")?.remove();
+        $("opt-chain").innerHTML =
+          `<tbody><tr><td class="chain-error">${esc(r.error)} ${esc(r.suggestion || "")}</td></tr></tbody>`;
+        setStatus(r.error, "bad");
+        return;
+      }
+      const select = $("opt-expiry");
+      select.innerHTML = r.expiries.map((e) =>
+        `<option value="${esc(e.date)}">${esc(e.label)} · ${e.days}d</option>`).join("");
+      // Default to the first expiry at least three weeks out: the front week
+      // is mostly noise and decays too fast to learn anything from.
+      const preferred = keepExpiry && r.expiries.some((e) => e.date === keepExpiry)
+        ? keepExpiry
+        : (r.expiries.find((e) => e.days >= 21) || r.expiries[r.expiries.length - 1] || {}).date;
+      if (preferred) select.value = preferred;
+      state.options.expiry = select.value;
+      await loadChain();
+    } finally { optionsBusy(false); }
+  }
+
+  async function loadChain() {
+    const { ticker, expiry } = state.options;
+    if (!ticker || !expiry) return;
+    optionsBusy(true, `Loading ${ticker} ${expiry}…`);
+    try {
+      const r = await window.pywebview.api.option_chain(ticker, expiry);
+      if (!r.ok) {
+        $("opt-chain").innerHTML =
+          `<tbody><tr><td class="chain-error">${esc(r.error)}</td></tr></tbody>`;
+        setStatus(r.error, "bad");
+        return;
+      }
+      state.options.chain = r;
+      renderChain(r);
+      if (state.options.contract) {
+        const { strike, kind } = state.options.contract;
+        selectContract(strike, kind, { quiet: true });
+      }
+      await refreshAccount();
+      setStatus(
+        `${r.ticker} ${usd(r.spot)} · ${r.days_to_expiry} days to expiry`,
+        r.synthetic ? "bad" : "ok",
+      );
+    } finally { optionsBusy(false); }
+  }
+
+  function renderChain(chain) {
+    const quoted = new Date(chain.quoted_at);
+    $("opt-chain-chip") .innerHTML = chain.synthetic
+      ? '<span class="chip bad">synthetic chain</span>'
+      : `<span class="chip">quoted ${quoted.toLocaleTimeString()}</span>`;
+    $("opt-chain-head").innerHTML = `
+      <div class="chain-spot">
+        <span class="ticker">${esc(chain.ticker)}</span>
+        <span class="chain-price">${usd(chain.spot)}</span>
+        <span class="headline-meta">${esc(chain.expiry)} · ${chain.days_to_expiry} days</span>
+      </div>
+      ${chain.warnings.map((w) => `<div class="dim chain-warning">${esc(w)}</div>`).join("")}`;
+
+    const cell = (row, kind, field, text, extra = "") =>
+      `<td class="side ${kind}${extra}" data-strike="${row.strike}" data-kind="${kind}"
+           data-field="${field}">${text}</td>`;
+
+    const body = chain.rows.map((row) => {
+      const call = row.call || {};
+      const put = row.put || {};
+      const atm = Math.abs(row.strike - chain.atm_strike) < 1e-6;
+      const callItm = call.in_the_money ? " itm" : "";
+      const putItm = put.in_the_money ? " itm" : "";
+      return `<tr class="chain-row${atm ? " atm" : ""}">
+        ${cell(row, "call", "oi", countText(call.open_interest), callItm)}
+        ${cell(row, "call", "vol", countText(call.volume), callItm)}
+        ${cell(row, "call", "delta", num(call.delta, 2), callItm)}
+        ${cell(row, "call", "iv", ivText(call.iv), callItm)}
+        ${cell(row, "call", "bid", num(call.bid), callItm + " price")}
+        ${cell(row, "call", "ask", num(call.ask), callItm + " price")}
+        <td class="strike-col">${row.strike.toFixed(2)}</td>
+        ${cell(row, "put", "bid", num(put.bid), putItm + " price")}
+        ${cell(row, "put", "ask", num(put.ask), putItm + " price")}
+        ${cell(row, "put", "iv", ivText(put.iv), putItm)}
+        ${cell(row, "put", "delta", num(put.delta, 2), putItm)}
+        ${cell(row, "put", "vol", countText(put.volume), putItm)}
+        ${cell(row, "put", "oi", countText(put.open_interest), putItm)}
+      </tr>`;
+    }).join("");
+
+    $("opt-chain").innerHTML = `
+      <thead>
+        <tr class="chain-sides">
+          <th colspan="6">Calls</th><th class="strike-col">Strike</th><th colspan="6">Puts</th>
+        </tr>
+        <tr>
+          <th>OI</th><th>Vol</th><th>Δ</th><th>IV</th><th>Bid</th><th>Ask</th>
+          <th class="strike-col"></th>
+          <th>Bid</th><th>Ask</th><th>IV</th><th>Δ</th><th>Vol</th><th>OI</th>
+        </tr>
+      </thead>
+      <tbody>${body}</tbody>`;
+
+    $("opt-chain").querySelectorAll("[data-strike]").forEach((node) => {
+      node.addEventListener("click", () =>
+        selectContract(parseFloat(node.dataset.strike), node.dataset.kind));
+    });
+
+    // Open centred on the money rather than at the top of a hundred strikes,
+    // which is where a chain is always read outward from. Scrolled by hand
+    // rather than with scrollIntoView, which walks every ancestor and drags
+    // the page itself down, pulling the account strip off the top.
+    const scroller = $("opt-chain").closest(".chain-scroll");
+    const atmRow = $("opt-chain").querySelector(".chain-row.atm");
+    if (scroller && atmRow) {
+      const frame = scroller.getBoundingClientRect();
+      const row = atmRow.getBoundingClientRect();
+      scroller.scrollTop += (row.top - frame.top) - (frame.height - row.height) / 2;
+    }
+  }
+
+  async function selectContract(strike, kind, { quiet = false } = {}) {
+    const { ticker, expiry } = state.options;
+    if (!quiet) optionsBusy(true, "Pricing…");
+    try {
+      const r = await window.pywebview.api.option_contract(ticker, expiry, strike, kind);
+      if (!r.ok) { setStatus(r.error, "bad"); return; }
+      state.options.contract = { strike, kind, detail: r };
+      renderContract(r);
+    } finally { if (!quiet) optionsBusy(false); }
+  }
+
+  function renderContract(detail) {
+    const panel = $("opt-contract-panel");
+    panel.hidden = false;
+    const q = detail.contract;
+    $("opt-contract-title").textContent = detail.label;
+    $("opt-contract-chip").innerHTML = detail.synthetic
+      ? '<span class="chip bad">synthetic</span>'
+      : `<span class="chip">${detail.days_to_expiry} days left</span>`;
+
+    const greekTile = (label, value, note) =>
+      `<div class="stat"><div class="stat-label">${esc(label)}</div>
+        <div class="stat-value">${value}</div>
+        <div class="stat-note">${esc(note)}</div></div>`;
+
+    $("opt-contract-body").innerHTML = `
+      <div class="stat-grid tiles-six">
+        ${greekTile("Bid", num(q.bid), "what you would be paid")}
+        ${greekTile("Ask", num(q.ask), "what it costs to buy")}
+        ${greekTile("Spread", q.spread_pct == null ? "—" : `${(q.spread_pct * 100).toFixed(1)}%`,
+          "of the midpoint, paid on the round trip")}
+        ${greekTile("Implied vol", ivText(detail.iv), detail.iv_source || "")}
+        ${greekTile("Break even", num(detail.break_even), "underlying, at expiry")}
+        ${greekTile("Leverage", detail.leverage == null ? "—" : `${detail.leverage.toFixed(1)}x`,
+          "move per 1% in the underlying")}
+      </div>
+
+      <div class="ticket" id="opt-ticket">
+        <div class="ticket-sides" role="group" aria-label="Side">
+          <button class="ticket-side" data-side="buy" aria-pressed="${state.options.side === "buy"}">Buy</button>
+          <button class="ticket-side sell" data-side="sell" aria-pressed="${state.options.side === "sell"}">Sell</button>
+        </div>
+        <div class="ticket-size">
+          <button class="step" data-step="-1" aria-label="One fewer contract">−</button>
+          <input type="number" id="opt-contracts" min="1" max="500" step="1"
+                 value="${state.options.contracts}" aria-label="Contracts" />
+          <button class="step" data-step="1" aria-label="One more contract">+</button>
+          <span class="dim">contracts</span>
+        </div>
+        <span class="spacer"></span>
+        <div class="ticket-cost" id="opt-preview"></div>
+        <button class="primary" id="opt-place">Place order</button>
+      </div>
+      ${detail.note ? `<div class="dim">${esc(detail.note)}</div>` : ""}
+
+      ${detail.curves ? `
+      <div class="stat-grid tiles-six">
+        ${greekTile("Delta", num(q.delta, 3), "shares of exposure, per share")}
+        ${greekTile("Gamma", num(q.gamma, 4), "delta gained per $1 move")}
+        ${greekTile("Theta", num(q.theta, 3), "lost per day, per share")}
+        ${greekTile("Vega", num(q.vega, 3), "per point of implied vol")}
+        ${greekTile("Rho", num(q.rho, 3), "per point of interest rate")}
+        ${greekTile("One contract", usd(detail.cost_per_contract), "at the ask, before commission")}
+      </div>
+
+      <div class="greek-grid">
+        <figure><figcaption>Value against the underlying
+          <span class="dim">— now, and the dashed line at expiry</span></figcaption>
+          <div id="gc-price"></div></figure>
+        <figure><figcaption>Delta <span class="dim">— how much it moves with the stock</span></figcaption>
+          <div id="gc-delta"></div></figure>
+        <figure><figcaption>Gamma <span class="dim">— how fast delta itself changes</span></figcaption>
+          <div id="gc-gamma"></div></figure>
+        <figure><figcaption>Theta <span class="dim">— decay per day</span></figcaption>
+          <div id="gc-theta"></div></figure>
+        <figure><figcaption>Vega <span class="dim">— sensitivity to implied volatility</span></figcaption>
+          <div id="gc-vega"></div></figure>
+        <figure><figcaption>Rho <span class="dim">— sensitivity to interest rates</span></figcaption>
+          <div id="gc-rho"></div></figure>
+      </div>` : ""}
+
+      ${detail.history ? `
+      <div class="compare-block">
+        <div class="legend">
+          <span><span class="legend-swatch" style="background:var(--accent)"></span>This contract</span>
+          <span><span class="legend-swatch" style="background:var(--text-faint)"></span>${esc(detail.ticker)}</span>
+        </div>
+        <div id="opt-history" style="min-height:200px"></div>
+        <p class="dim">Both indexed to 100 six months ago, which is the only way two
+           series this far apart in size can share an axis. The option's line is
+           <strong>modelled</strong> — there is no free source of historical option
+           quotes, so each day is priced from that day's close at today's implied
+           volatility. The level is an estimate; the point is how much harder the
+           option moves than the stock.</p>
+      </div>` : ""}`;
+
+    wireTicket();
+    if (detail.curves) requestAnimationFrame(() => drawGreekCurves(detail));
+    if (detail.history) requestAnimationFrame(() => {
+      Charts.line($("opt-history"), {
+        values: detail.history.option_indexed,
+        benchmark: detail.history.underlying_indexed,
+        dates: detail.history.dates,
+        format: (v) => v.toFixed(0),
+        height: 200,
+      });
+    });
+  }
+
+  function drawGreekCurves(detail) {
+    const c = detail.curves;
+    const spot = detail.spot;
+    const xFormat = (v) => v.toFixed(0);
+    Charts.curve($("gc-price"), {
+      xs: c.spots, ys: c.price, second: c.expiry, marker: spot, xFormat,
+      format: (v) => v.toFixed(1), fill: true,
+    });
+    [["delta", 2], ["gamma", 3], ["theta", 2], ["vega", 2], ["rho", 2]].forEach(([name, places]) => {
+      Charts.curve($(`gc-${name}`), {
+        xs: c.spots, ys: c[name], marker: spot, xFormat,
+        format: (v) => v.toFixed(places),
+      });
+    });
+  }
+
+  function wireTicket() {
+    document.querySelectorAll("#opt-ticket [data-side]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.options.side = button.dataset.side;
+        document.querySelectorAll("#opt-ticket [data-side]").forEach((b) =>
+          b.setAttribute("aria-pressed", String(b.dataset.side === state.options.side)));
+        previewOrder();
+      });
+    });
+    document.querySelectorAll("#opt-ticket [data-step]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const box = $("opt-contracts");
+        box.value = Math.max(1, (parseInt(box.value, 10) || 1) + parseInt(button.dataset.step, 10));
+        state.options.contracts = parseInt(box.value, 10);
+        previewOrder();
+      });
+    });
+    $("opt-contracts").addEventListener("input", () => {
+      state.options.contracts = Math.max(1, parseInt($("opt-contracts").value, 10) || 1);
+      previewOrder();
+    });
+    $("opt-place").addEventListener("click", placeOrder);
+    previewOrder();
+  }
+
+  /** Ask the account what the order would do, before anyone commits to it. */
+  async function previewOrder() {
+    const selected = state.options.contract;
+    const node = $("opt-preview");
+    if (!selected || !node) return;
+    const { ticker, expiry, side, contracts } = state.options;
+    const r = await window.pywebview.api.option_preview(
+      ticker, expiry, selected.strike, selected.kind, side, contracts);
+    if (!r.ok) { node.innerHTML = `<span class="bad-text">${esc(r.error)}</span>`; return; }
+
+    const debit = r.cash_effect < 0;
+    node.innerHTML = `
+      <div class="cost-line">
+        <span class="${debit ? "bad-text" : "good-text"}">${signedUsd(r.cash_effect)}</span>
+        <span class="dim">${debit ? "debit" : "credit"} at ${num(r.fill_price)} a share</span>
+      </div>
+      <div class="dim cost-detail">
+        ${r.contracts} × 100 × ${num(r.fill_price)} + ${usd(r.commission)} commission
+        ${r.collateral ? ` · ${usd(r.collateral)} held as collateral` : ""}
+      </div>
+      ${r.affordable ? "" : '<div class="bad-text">Not enough buying power.</div>'}`;
+    $("opt-place").disabled = !r.affordable;
+  }
+
+  async function placeOrder() {
+    const selected = state.options.contract;
+    if (!selected) return;
+    const { ticker, expiry, side, contracts } = state.options;
+    optionsBusy(true, "Placing…");
+    try {
+      const r = await window.pywebview.api.option_order(
+        ticker, expiry, selected.strike, selected.kind, side, contracts);
+      if (!r.ok) { setStatus(r.error, "bad"); return; }
+      renderAccount(r.account);
+      setStatus(
+        `${side === "buy" ? "Bought" : "Sold"} ${r.filled.contracts} ${r.filled.label} `
+        + `at ${num(r.filled.price)} · ${signedUsd(r.filled.cash_effect)}`,
+        "ok",
+      );
+      previewOrder();
+    } finally { optionsBusy(false); }
+  }
+
+  async function refreshAccount() {
+    const r = await window.pywebview.api.option_account();
+    if (r.ok) renderAccount(r);
+  }
+
+  function renderAccount(account) {
+    state.options.account = account;
+
+    $("opt-account-strip").innerHTML = `
+      <div class="account-figure"><span class="dim">Equity</span><strong>${usd(account.equity)}</strong></div>
+      <div class="account-figure"><span class="dim">Buying power</span><strong>${usd(account.buying_power)}</strong></div>
+      <div class="account-figure"><span class="dim">Open P&L</span>
+        <strong class="${(account.unrealized || 0) >= 0 ? "good-text" : "bad-text"}">${signedUsd(account.unrealized)}</strong></div>
+      <div class="account-figure"><span class="dim">Realized</span>
+        <strong class="${(account.realized || 0) >= 0 ? "good-text" : "bad-text"}">${signedUsd(account.realized)}</strong></div>`;
+
+    const exposure = account.exposure || {};
+    $("opt-exposure-chip").innerHTML = account.positions.length
+      ? `<span class="chip">delta ${num(exposure.delta, 0)} · theta ${signedUsd(exposure.theta)}/day`
+        + ` · vega ${num(exposure.vega, 1)}</span>`
+      : "";
+
+    if (!account.positions.length) {
+      $("opt-positions").innerHTML = `<p class="dim">Nothing open. Click a bid or an ask in the
+        chain above to build an order — you start with ${usd(account.starting_cash, 0)}.</p>`;
+    } else {
+      $("opt-positions").innerHTML = `
+        <table class="blotter"><thead><tr>
+          <th>Contract</th><th class="num">Qty</th><th class="num">Avg</th><th class="num">Mark</th>
+          <th class="num">Delta</th><th class="num">Theta/day</th><th class="num">Days</th>
+          <th class="num">Open P&L</th><th></th>
+        </tr></thead><tbody>
+        ${account.positions.map((p) => `<tr>
+          <td>${esc(p.label)}${p.assignment_risk
+            ? ' <span class="chip warn" title="Short and in the money: a real account can be assigned at any time">assignment risk</span>'
+            : ""}</td>
+          <td class="num">${p.contracts > 0 ? "+" : ""}${p.contracts}</td>
+          <td class="num">${num(p.average_price)}</td>
+          <td class="num">${num(p.mark)}</td>
+          <td class="num">${num(p.delta, 2)}</td>
+          <td class="num">${p.theta == null ? "—" : signedUsd(p.theta * p.contracts * 100)}</td>
+          <td class="num">${p.days_to_expiry}</td>
+          <td class="num ${(p.unrealized || 0) >= 0 ? "good-text" : "bad-text"}">${signedUsd(p.unrealized)}</td>
+          <td class="num"><button class="ghost small" data-close="${esc(p.id)}">Close</button></td>
+        </tr>`).join("")}
+        </tbody></table>
+        ${account.collateral_held
+          ? `<p class="dim">${usd(account.collateral_held)} of cash is held as collateral against
+             short positions and cannot be used for anything else.</p>` : ""}
+        ${account.stale.length
+          ? `<p class="dim">No live quote for ${account.stale.map(esc).join(", ")}; marked at what
+             they would settle for today, or at cost where even the underlying
+             could not be priced.</p>` : ""}`;
+
+      $("opt-positions").querySelectorAll("[data-close]").forEach((button) =>
+        button.addEventListener("click", () => closePosition(button.dataset.close)));
+    }
+
+    const settled = account.expiries_settled || [];
+    const ledger = account.ledger || [];
+    $("opt-activity").innerHTML = `
+      ${settled.length ? `<div class="settled">${settled.map((e) =>
+        `<div class="story-body">${esc(e.position)} ${esc(e.outcome)} —
+         ${signedUsd(e.realized)}, against ${esc(e.underlying.toFixed(2))}.</div>`).join("")}</div>` : ""}
+      ${ledger.length ? `<table class="blotter"><tbody>
+        ${ledger.map((entry) => `<tr>
+          <td class="dim">${esc(new Date(entry.at).toLocaleString())}</td>
+          <td>${esc(entry.note)}</td>
+          <td class="num ${entry.cash_effect >= 0 ? "good-text" : "bad-text"}">${signedUsd(entry.cash_effect)}</td>
+        </tr>`).join("")}</tbody></table>`
+        : '<p class="dim">Nothing has happened yet.</p>'}
+      <p class="dim">Fills cross the spread — you buy at the ask and sell at the bid — and
+         commission is ${usd(0.65)} a contract each way, both of which a simulator that
+         used the midpoint would hide from you.</p>`;
+  }
+
+  async function closePosition(id) {
+    optionsBusy(true, "Closing…");
+    try {
+      const r = await window.pywebview.api.option_close(id);
+      if (!r.ok) { setStatus(r.error, "bad"); return; }
+      renderAccount(r.account);
+      setStatus(`Closed ${r.closed.label} · ${signedUsd(r.closed.realized)} realized`,
+                r.closed.realized >= 0 ? "ok" : "bad");
+    } finally { optionsBusy(false); }
+  }
+
+  async function resetOptionAccount() {
+    const r = await window.pywebview.api.option_reset();
+    if (r.ok) { renderAccount(r.account); setStatus("Paper account reset", "ok"); }
+  }
+
+  /** Keep the screen live while it is the one being looked at. */
+  function optionsPolling(on) {
+    clearInterval(state.options.timer);
+    state.options.timer = null;
+    if (!on) return;
+    state.options.timer = setInterval(() => {
+      if (state.view !== "options" || document.hidden || state.busy) return;
+      loadChain();
+    }, OPTION_REFRESH_MS);
+  }
+
+  async function openOptionsDesk() {
+    if (!state.options.ticker) {
+      await loadOptionExpiries(state.lastTicker || "AAPL");
+    } else {
+      await refreshAccount();
+    }
+    optionsPolling(true);
   }
 
   /* ------------------------------------------------------------ settings */
@@ -853,6 +1326,9 @@
     if (name === "settings") renderSettings();
     if (name === "explore" && state.candlesStale) requestAnimationFrame(redrawCandles);
     if (name === "lab" && !$("lab-ticker").value) $("lab-ticker").value = state.lastTicker;
+    // The desk polls for quotes, so it only runs while it is the tab on screen.
+    if (name === "options") openOptionsDesk();
+    else optionsPolling(false);
   }
 
   function setLabMode(mode) {
@@ -1001,6 +1477,18 @@
         node.style.color = r.ok ? "var(--good)" : "var(--warn)";
       }, 420);
     });
+
+    $("opt-ticker").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") loadOptionExpiries($("opt-ticker").value);
+    });
+    $("opt-expiry").addEventListener("change", () => {
+      state.options.expiry = $("opt-expiry").value;
+      state.options.contract = null;
+      $("opt-contract-panel").hidden = true;
+      loadChain();
+    });
+    $("opt-refresh").addEventListener("click", () => loadChain());
+    $("opt-reset").addEventListener("click", resetOptionAccount);
 
     $("explore-query").addEventListener("input", (e) => {
       clearTimeout(state.searchTimer);

@@ -96,8 +96,17 @@ _ALWAYS_ALLOWED = {0.0, 1.0, 2.0, 100.0}
 #: Durations inside fixed labels ("12-month range", "52-week high"). The
 #: number is part of the label's name, not a measurement, so it is removed
 #: before extraction rather than having to appear in the bundle.
+#:
+#: The abbreviated forms are here for the same reason and not as a
+#: concession: "52w high" and "52-week high" are the same label, and a
+#: report that happens to use the short one is making no additional claim.
+#: The abbreviations are kept deliberately tight -- a letter immediately
+#: after the digits, and never a bare "m", which would swallow "3m" meaning
+#: three million.
 _DURATION_LABEL = re.compile(
-    r"\b\d{1,3}\s*-\s*(?:day|week|month|quarter|year)s?\b", re.IGNORECASE
+    r"\b\d{1,3}\s*-\s*(?:day|week|month|quarter|year)s?\b"
+    r"|\b\d{1,3}(?:d|w|wk|wks|mo|q|y|yr|yrs)\b",
+    re.IGNORECASE,
 )
 
 _ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")

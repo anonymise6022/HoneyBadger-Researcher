@@ -40,7 +40,12 @@ from .evidence.why_moved import DEFAULT_HISTORY_YEARS, build_why_moved_bundle
 from .explain import DEPTH_LABELS
 from .query_parser import QueryParseError, parse_query
 from .settings import CONFIG_PATH, KNOWN_KEYS, clear_key, describe_credentials, set_key
-from .synthesis.llm_report import LLMUnavailable, generate_report, llm_available
+from .synthesis.llm_report import (
+    LLMUnavailable,
+    generate_report,
+    llm_available,
+    resolve_backend,
+)
 from .synthesis.snapshot_report import SNAPSHOT_SECTIONS, render_snapshot_report
 from .synthesis.template_report import REQUIRED_SECTIONS, render_report
 from .synthesis.validator import validate_report
@@ -233,18 +238,23 @@ def ask(
     if llm or compare:
         if not llm_available():
             print_error(
-                "Claude is not configured, so the plain template is shown instead",
-                "Set ANTHROPIC_API_KEY (or run `ant auth login`) to use --llm. "
-                "Everything else works without it.",
+                "no model is configured, so the plain template is shown instead",
+                "Either download the local model (about 4GB, no key, nothing "
+                "leaves this machine) with `pip install mlx-lm` and "
+                "`research download-model`, or set ANTHROPIC_API_KEY. "
+                "Everything else works without either.",
                 plain,
             )
         else:
+            backend = resolve_backend()
+            writer = "a local model" if backend == "local" else "Claude"
             try:
-                with _progress("Writing the note with Claude", plain):
+                with _progress(f"Writing the note with {writer}", plain):
                     result = generate_report(bundle)
             except LLMUnavailable as exc:
                 print_error(
-                    f"could not reach Claude ({exc}); showing the plain template instead",
+                    f"could not reach the model ({exc}); showing the plain "
+                    "template instead",
                     "",
                     plain,
                 )
@@ -256,7 +266,10 @@ def ask(
                         print("=" * 78)
                         print(template)
                         print("=" * 78)
-                        print(f"  CLAUDE VERSION ({result.model}, {result.attempts} attempt(s))")
+                        print(
+                            f"  WRITTEN VERSION ({result.model}, "
+                            f"{result.attempts} attempt(s))"
+                        )
                         print("=" * 78)
                     report, validation = result.report, result.validation
                 else:

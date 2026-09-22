@@ -304,6 +304,96 @@ const Charts = (() => {
     svg.addEventListener("mouseleave", hide);
   }
 
+  /* ------------------------------------------------------------ curve */
+
+  /**
+   * One quantity against an arbitrary numeric x axis.
+   *
+   * The greeks need this and the line chart cannot give it: a line chart's
+   * x axis is a position in a series, which is right for dates and wrong for
+   * a price. Delta against the underlying has to put the strike where the
+   * strike is, or the shape of the curve says something false about where
+   * the contract changes character.
+   *
+   * `marker` draws a vertical rule at one x value -- where the underlying
+   * is now -- because every one of these curves is read as "where am I on
+   * it, and which way am I about to move".
+   */
+  function curve(container, opts) {
+    const {
+      xs, ys, second, marker, format, xFormat, height = 132, zero = true, fill = false,
+    } = opts;
+    container.innerHTML = "";
+    const points = (xs || []).map((x, i) => [x, ys ? ys[i] : null])
+      .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+    if (points.length < 2) {
+      container.innerHTML = '<div class="chart-empty">No curve to draw.</div>';
+      return;
+    }
+    const width = container.clientWidth || 300;
+    const pad = { top: 10, right: 8, bottom: 20, left: 46 };
+
+    const values = points.map((p) => p[1]).concat(second ? second.filter(Number.isFinite) : []);
+    if (zero) values.push(0);
+    const scale = scales(values, width, height, pad);
+    const xMin = Math.min(...points.map((p) => p[0]));
+    const xMax = Math.max(...points.map((p) => p[0]));
+    const xSpan = xMax - xMin || 1;
+    const px = (x) => pad.left + ((x - xMin) / xSpan) * (width - pad.left - pad.right);
+
+    const svg = el("svg", {
+      class: "chart", viewBox: `0 0 ${width} ${height}`, height, role: "img",
+    });
+    gridlines(svg, scale, width, height, pad, format || ((v) => v.toFixed(2)), 2);
+
+    if (zero && scale.min < 0 && scale.max > 0) {
+      const y = scale.y(0);
+      svg.appendChild(el("line", {
+        x1: pad.left, x2: width - pad.right, y1: y, y2: y, class: "chart-zero",
+      }));
+    }
+
+    const path = (series) => series
+      .map(([x, y], i) => `${i ? "L" : "M"}${px(x).toFixed(2)},${scale.y(y).toFixed(2)}`)
+      .join(" ");
+
+    if (fill) {
+      svg.appendChild(el("path", {
+        class: "chart-area",
+        d: `${path(points)} L${px(xMax).toFixed(2)},${scale.y(zero ? 0 : scale.min).toFixed(2)}`
+           + ` L${px(xMin).toFixed(2)},${scale.y(zero ? 0 : scale.min).toFixed(2)} Z`,
+      }));
+    }
+    if (second) {
+      const other = xs.map((x, i) => [x, second[i]])
+        .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+      if (other.length > 1) {
+        svg.appendChild(el("path", { class: "chart-line benchmark", d: path(other) }));
+      }
+    }
+    svg.appendChild(el("path", { class: "chart-line primary", d: path(points) }));
+
+    if (Number.isFinite(marker) && marker >= xMin && marker <= xMax) {
+      const x = px(marker);
+      svg.appendChild(el("line", {
+        x1: x, x2: x, y1: pad.top, y2: height - pad.bottom, class: "chart-marker",
+      }));
+    }
+
+    // Three x labels: the ends and the middle. More than that is unreadable
+    // at the size these are drawn, and the marker says where "now" is.
+    const label = xFormat || ((v) => v.toFixed(0));
+    [[xMin, "start"], [(xMin + xMax) / 2, "middle"], [xMax, "end"]].forEach(([value, anchorAt]) => {
+      const text = el("text", {
+        x: px(value), y: height - pad.bottom + 14,
+        class: "chart-axis-text", "text-anchor": anchorAt,
+      });
+      text.textContent = label(value);
+      svg.appendChild(text);
+    });
+    container.appendChild(svg);
+  }
+
   /* ------------------------------------------------------------ bars */
 
   /** Horizontal comparison bars — used wherever two rates sit side by side. */
@@ -491,5 +581,5 @@ const Charts = (() => {
     container.appendChild(svg);
   }
 
-  return { line, drawdown, candles, compare, surface, payoff };
+  return { line, drawdown, candles, compare, curve, surface, payoff };
 })();

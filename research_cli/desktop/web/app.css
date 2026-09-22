@@ -555,3 +555,123 @@ tbody tr:hover { background: var(--accent-wash); }
 .font-sample[data-face="pixel"] {
   font-family: var(--face-pixel); letter-spacing: 0; -webkit-font-smoothing: none;
 }
+
+/* ============================ options desk ===========================
+ *
+ * A trading screen has one job the rest of this interface does not: it has
+ * to be scannable at a glance while the numbers underneath it move. So the
+ * chain is dense and tabular, prices are the only column with any weight to
+ * them, and colour is spent entirely on two things -- in the money, and
+ * whether a number is money you have made or money you have lost.
+ *
+ * The chain scrolls inside its own panel rather than the page, and opens
+ * centred on the money, because a chain is always read outward from the
+ * strike nearest the price. */
+
+/* Six tiles, six columns. Written specifically enough to beat the beginner
+ * depth's roomier `.stat-grid`, which is right for a narrative page and
+ * wrong here: it fits five across and leaves the sixth stranded on a row of
+ * its own, which reads as a mistake rather than as generosity. */
+.stat-grid.tiles-six { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+
+.account-strip { display: flex; gap: var(--space-5); align-items: center; flex-wrap: wrap; }
+.account-figure { display: flex; flex-direction: column; line-height: 1.3; }
+.account-figure .dim { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; }
+.account-figure strong { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.good-text { color: var(--good); }
+.bad-text { color: var(--bad); }
+
+.chain-head { margin-bottom: var(--space-3); }
+.chain-spot { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.chain-price { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chain-warning { margin-top: var(--space-2); font-size: 11px; }
+
+.chain-scroll {
+  max-height: clamp(280px, 48vh, 560px); overflow-y: auto;
+  border: var(--hairline) solid var(--line); border-radius: var(--radius-sm);
+}
+.chain-scroll::-webkit-scrollbar { width: 10px; }
+.chain-scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong); border-radius: 6px; border: 3px solid var(--surface);
+}
+
+table.chain { font-size: 11.5px; }
+table.chain thead { position: sticky; top: 0; z-index: 1; background: var(--surface-2); }
+table.chain th { padding: 5px var(--space-2); text-align: right; }
+table.chain .chain-sides th {
+  text-align: center; letter-spacing: 0.14em; color: var(--text-dim);
+  border-bottom: var(--hairline) solid var(--line-strong);
+}
+table.chain td { padding: 4px var(--space-2); text-align: right; vertical-align: middle; }
+table.chain tbody tr:hover { background: transparent; }
+
+.chain-row td.side { cursor: pointer; color: var(--text-dim); }
+.chain-row td.side.price { color: var(--text); }
+.chain-row td.side.itm { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.chain-row td.side:hover {
+  background: var(--accent); color: var(--bg); font-weight: 600;
+}
+.chain-row.atm td { border-top: var(--hairline) solid var(--accent-dim); }
+.chain-row.atm .strike-col { color: var(--accent); font-weight: 600; }
+
+.strike-col {
+  text-align: center !important; font-weight: 600; color: var(--text);
+  background: var(--surface-2);
+  border-left: var(--hairline) solid var(--line);
+  border-right: var(--hairline) solid var(--line);
+}
+.chain-error { color: var(--bad); padding: var(--space-4); text-align: left !important; }
+
+/* ------------------------------------------------------------- ticket */
+
+.ticket {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-3); border-radius: var(--radius);
+  background: var(--surface-2); border: var(--hairline) solid var(--line);
+}
+.ticket-sides { display: flex; gap: 2px; background: var(--bg); border-radius: var(--radius-sm); padding: 2px; }
+.ticket-side {
+  background: transparent; border: none; border-radius: var(--radius-sm);
+  padding: 6px var(--space-4); cursor: pointer; font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint);
+}
+.ticket-side[aria-pressed="true"] { background: var(--good); color: var(--bg); font-weight: 600; }
+.ticket-side.sell[aria-pressed="true"] { background: var(--bad); }
+
+.ticket-size { display: flex; align-items: center; gap: var(--space-2); }
+.ticket-size input {
+  width: 58px; text-align: center; background: var(--bg);
+  border: var(--hairline) solid var(--line); border-radius: var(--radius-sm);
+  color: var(--text); font-family: var(--font-mono); font-size: 13px; padding: 5px;
+  /* The native spinner overlaps the digits at this width, and the two
+     buttons either side already do its job. */
+  appearance: textfield; -moz-appearance: textfield;
+}
+.ticket-size input::-webkit-outer-spin-button,
+.ticket-size input::-webkit-inner-spin-button { appearance: none; margin: 0; }
+.step { width: 26px; height: 26px; padding: 0; font-size: 14px; line-height: 1; }
+
+.ticket-cost { text-align: right; line-height: 1.4; }
+.cost-line { font-size: 14px; font-variant-numeric: tabular-nums; }
+.cost-detail { font-size: 10.5px; }
+
+/* ------------------------------------------------------- greek charts */
+
+.greek-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); }
+.greek-grid figure { margin: 0; }
+.greek-grid figcaption {
+  font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: var(--space-1);
+}
+.greek-grid figcaption .dim { text-transform: none; letter-spacing: 0; }
+.compare-block > * + * { margin-top: var(--space-2); }
+
+/* ------------------------------------------------------------ blotter */
+
+table.blotter { font-size: 11.5px; }
+table.blotter td { padding: var(--space-2) var(--space-3); vertical-align: middle; }
+table.blotter th { padding: var(--space-2) var(--space-3); }
+.settled {
+  border-left: 2px solid var(--warn); padding-left: var(--space-3); margin-bottom: var(--space-3);
+}

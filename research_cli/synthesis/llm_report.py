@@ -52,8 +52,10 @@ __all__ = [
     "LLMReportResult",
     "LLMUnavailable",
     "build_messages",
+    "claude_available",
     "generate_report",
     "llm_available",
+    "resolve_backend",
 ]
 
 #: Claude Opus 5. Report writing under hard constraints is a reasoning task,
@@ -172,7 +174,57 @@ class LLMReportResult:
     output_tokens: int = 0
 
 
-def llm_available() -> bool:
+def resolve_backend(preference: str = "auto") -> str:
+    """Pick which model writes the report.
+
+    Local first when it is ready, for the reason the whole tool is built
+    around: it needs no key, costs nothing per report, and keeps the bundle
+    on the machine that produced it. Claude is used when it is configured
+    and no local model is, and is better at this job -- so an explicit
+    preference always wins over the default order.
+
+    Raises `LLMUnavailable` when neither can be reached, which the caller
+    treats as "use the template", not as an error.
+    """
+    if preference not in ("auto", "local", "claude"):
+        raise ValueError(f"backend must be 'auto', 'local' or 'claude', got {preference!r}")
+
+    if preference == "local":
+        from . import local_llm  # noqa: PLC0415
+
+        if not local_llm.available():
+            raise LLMUnavailable(local_llm.describe().detail)
+        return "local"
+    if preference == "claude":
+        if not claude_available():
+            raise LLMUnavailable("no Claude credentials are configured")
+        return "claude"
+
+    try:
+        from . import local_llm  # noqa: PLC0415
+
+        if local_llm.available():
+            return "local"
+    except ImportError:  # pragma: no cover - the module is part of the package
+        pass
+    if claude_available():
+        return "claude"
+    raise LLMUnavailable(
+        "no model is available: no Claude credentials, and no local model "
+        "downloaded"
+    )
+
+
+def llm_available(preference: str = "auto") -> bool:
+    """Whether any model could write a report right now."""
+    try:
+        resolve_backend(preference)
+    except LLMUnavailable:
+        return False
+    return True
+
+
+def claude_available() -> bool:
     """Whether a Claude call could plausibly be made.
 
     An unset ANTHROPIC_API_KEY does not by itself mean there are no
@@ -213,8 +265,45 @@ def _bundle_payload(bundle: EvidenceBundle) -> str:
     return json.dumps(payload, indent=2, default=str)
 
 
+#: Restated at the very end of the instruction for models that need it.
+#:
+#: A small model holds the beginning of a long prompt less firmly than the
+#: end of it, and the failure this fixes was exactly that: a 4B model that
+#: had traced all 86 of its figures correctly still wrote "Because the
+#: sample size is relatively small", having forgotten a rule stated two
+#: thousand words earlier. The banned words are spelled out again, and the
+#: statistical sense is closed off explicitly, because that is the sense a
+#: model reaches for once it has stopped talking about the market.
+FINAL_CHECKLIST = """\
+
+BEFORE YOU FINISH, CHECK THE NOTE YOU HAVE WRITTEN:
+
+- These words must not appear anywhere in it: because, caused, due to, \
+drove, driven by, triggered, led to, resulted in, thanks to, the reason for. \
+Not about the market, and not about statistics or sample sizes either. Start \
+a new sentence instead.
+- Every number in your note appears in the bundle above.
+- You wrote sentences, not a list of fields. Never copy a bundle field name \
+such as high_52w, annualized_vol_pct or beats_base_rate into the note; say \
+what it means in words. A field name carries digits of its own and they are \
+not figures you were given.
+- Every item in the bundle's counterevidence list is mentioned, in the \
+section that says what the numbers do not tell you. Leaving one out is the \
+one omission this note is never allowed to make.
+- Long numbers are rounded the way a person would say them: $1.5 trillion, \
+not 1508144331448.53; 733 rather than 733.1641514191865.
+- You never gave a figure for a named peer company. The bundle holds this \
+company's own value and the median across its peers, and nothing else. \
+Writing "Microsoft trades at 27.9" states a figure you were not given, even \
+if you believe it. Compare against "the typical company in this group".
+- You used every section heading given, in the order given.
+"""
+
+
 def build_messages(
-    bundle: EvidenceBundle, repair_notes: list[str] | None = None
+    bundle: EvidenceBundle,
+    repair_notes: list[str] | None = None,
+    emphasise_rules: bool = False,
 ) -> list[dict[str, Any]]:
     """Build the message list for one generation attempt.
 
@@ -225,6 +314,11 @@ def build_messages(
     are stated as facts about the previous draft rather than as
     instructions, so the model corrects the specific figures rather than
     rewriting the whole note.
+
+    `emphasise_rules` appends `FINAL_CHECKLIST`, and is set for the local
+    backend. It is not sent to Claude, which does not need it -- and a prompt
+    that changes for every model is a prompt nobody can reason about, so the
+    difference is one appended block rather than a second prompt.
     """
     sections = (
         SNAPSHOT_SECTIONS if bundle.question_type == "snapshot" else REQUIRED_SECTIONS
@@ -243,6 +337,8 @@ def build_messages(
             "Write the note again. Every number must appear in the bundle above. "
             "If you cannot support a statement from the bundle, remove it."
         )
+    if emphasise_rules:
+        instruction += FINAL_CHECKLIST
     return [{"role": "user", "content": instruction}]
 
 
@@ -308,23 +404,39 @@ def _call_claude(
     )
 
 
+def _call_local(
+    messages: list[dict[str, Any]], model: str
+) -> tuple[str, int, int]:
+    """One local generation, with the same signature as the Claude call."""
+    from . import local_llm  # noqa: PLC0415
+
+    try:
+        return local_llm.generate(messages, SYSTEM_PROMPT, model=model)
+    except local_llm.LocalUnavailable as exc:
+        raise LLMUnavailable(str(exc)) from exc
+
+
 def generate_report(
     bundle: EvidenceBundle,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
     effort: str = DEFAULT_EFFORT,
     client: Any | None = None,
     max_attempts: int = MAX_ATTEMPTS,
+    backend: str = "auto",
 ) -> LLMReportResult:
     """Generate a validated report, retrying once if validation fails.
 
     Parameters
     ----------
     bundle : the evidence. The model sees this and nothing else.
-    model : Claude model id.
-    effort : "low" through "max".
+    model : model id, or None for whichever the chosen backend defaults to.
+    effort : "low" through "max". Claude only; a local model has no such dial.
     client : an Anthropic client, or None to construct one. Injectable so
         tests can drive the whole loop -- including the repair path -- with a
-        fake and no network.
+        fake and no network. Supplying one selects the Claude backend, since
+        that is the only thing a client can be.
+    backend : "auto", "local" or "claude". Auto prefers a downloaded local
+        model over an API key.
     max_attempts : generations before giving up. Two is the useful number:
         one retry fixes a stray figure, and a model that fails twice with
         the failures quoted back is not going to succeed on a third try.
@@ -338,15 +450,31 @@ def generate_report(
     if max_attempts < 1:
         raise ValueError(f"max_attempts must be at least 1, got {max_attempts}")
 
+    # A supplied client can only be an Anthropic one, so it names the backend
+    # and keeps every existing caller and test on the path it expects.
+    chosen = "claude" if client is not None else resolve_backend(backend)
+    if model is None:
+        if chosen == "local":
+            from . import local_llm  # noqa: PLC0415
+
+            model = local_llm.DEFAULT_LOCAL_MODEL
+        else:
+            model = DEFAULT_MODEL
+
     repair_notes: list[str] = []
     last_report, last_validation = "", None
     input_tokens = output_tokens = 0
 
     for attempt in range(1, max_attempts + 1):
-        text, used_in, used_out = _call_claude(
-            build_messages(bundle, repair_notes if attempt > 1 else None),
-            model, effort, client,
+        messages = build_messages(
+            bundle,
+            repair_notes if attempt > 1 else None,
+            emphasise_rules=chosen == "local",
         )
+        if chosen == "local":
+            text, used_in, used_out = _call_local(messages, model)
+        else:
+            text, used_in, used_out = _call_claude(messages, model, effort, client)
         input_tokens += used_in
         output_tokens += used_out
         validation = validate_report(

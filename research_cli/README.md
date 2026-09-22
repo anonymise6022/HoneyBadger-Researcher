@@ -113,6 +113,89 @@ Depth is a presentation parameter and never a data one. All three render from
 the identical `EvidenceBundle` and pass the identical validator, so two
 readers at different depths cannot come away with different figures.
 
+### Plain-language reports, written locally
+
+`--llm` rewrites the template report into plain prose. Two models can do it,
+and the tool prefers whichever needs least from you:
+
+| Backend | When it is used |
+|---|---|
+| **Local** — `mlx-community/Qwen3.5-4B-OptiQ-4bit` | Whenever the weights are on disk. No key, no network, nothing leaves the machine |
+| **Claude** | When no local model is downloaded and `ANTHROPIC_API_KEY` is set |
+| Neither | The template is shown, which is the normal no-configuration path |
+
+The local model is Qwen3.5 4B quantised to four bits for MLX: 4GB on disk,
+Apache 2.0, roughly 25 tokens a second on an M4, so a report takes about
+forty seconds against an instant template. Install and fetch it with:
+
+```bash
+pip install mlx-lm
+python -c "from research_cli.synthesis import local_llm; local_llm.ensure_weights()"
+```
+
+**Why a 4B model is enough here.** It is not asked to know anything. The
+evidence bundle is computed before it is called, handed over pre-sorted, and
+`validator.validate_report` afterwards checks that every figure in the prose
+traces back to a bundle field — rejecting the draft and regenerating once
+with the failures quoted back if it does not. Unvalidated prose is never
+shown, whoever wrote it. The guardrail is mechanical, so the model only has
+to rewrite faithfully, and a small one does that. Measured on the synthetic
+bundles: 52 of 52 figures traced on the first attempt.
+
+**What the small model needed that Claude did not.** One appended block,
+`FINAL_CHECKLIST`, restating the banned words at the very end of the prompt.
+A 4B model holds the start of a long prompt less firmly than the end, and
+the failure this fixes was exactly that — a draft that traced all 86 of its
+figures correctly and still wrote "Because the sample size is relatively
+small", having forgotten a rule stated two thousand words earlier. Claude's
+prompt is unchanged.
+
+### Options (paper trading)
+
+A trading screen rather than a research one: the live chain for a symbol,
+with calls, strikes and puts laid out the way a broker shows them, and a
+paper account that can buy and sell the contracts in it.
+
+Quotes come from Yahoo through `yfinance` — real strikes, bid, ask, last,
+implied volatility, volume and open interest, delayed by roughly a quarter
+of an hour. With no network, or for a symbol with no listed options, a chain
+is modelled from the underlying's own synthetic history and labelled as
+such everywhere it appears.
+
+The account is deliberately unflattering, because a paper account that
+shaves the corners teaches the opposite of the lesson:
+
+| Rule | Why |
+|---|---|
+| Fills cross the spread — buy the ask, sell the bid | Filling at the midpoint hands the trader the half-spread on every trade, which is most of the profit on a small winner |
+| $0.65 a contract, each way | Two dollars a round trip is a fifth of the gain on a ten-cent move |
+| Shorts are collateralised before they are allowed | A short put ties up the cash to buy the shares at the strike; a short call ties up Regulation T margin. Being unable to open one is the position's risk, stated in advance |
+| Positions mark at what it would cost to get out | The bid for a long, the ask for a short. Equity is what the account could be liquidated for, not what it looks like |
+| Expiry settles whether or not anyone is watching | Against the underlying's close on the contract's own expiry day, with assignment on anything short and in the money |
+
+Selecting a contract draws all five greeks against the underlying's price,
+plus its value now against its value at expiry, and puts the last six months
+of the contract's price beside the stock's, both indexed to 100 — which is
+where the leverage in an option becomes visible rather than merely stated.
+That last chart is **modelled**: there is no free source of historical option
+quotes, so each past day is priced from that day's close at today's implied
+volatility.
+
+Two things a real account has that this one does not, both said on screen:
+early assignment, which a short American option can suffer at any moment and
+which is modelled only at expiry; and shares, so an exercised call settles in
+cash rather than delivering stock.
+
+The account lives in `~/.config/research_cli/paper_options.json` and can be
+reset from the Activity panel. Greeks are quoted the way a platform quotes
+them — delta per share, theta per day, vega per point of implied volatility —
+which is arithmetic, not convention, and is covered by tests against
+published values.
+
+Lab → Option overlays is a different thing: a historical backtest of an
+option strategy rolled over many years, which is what the years selector
+there is for.
+
 ### Quant (alpha)
 
 GARCH volatility forecasting, Hurst exponent and variance-ratio regime
