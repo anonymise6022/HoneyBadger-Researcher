@@ -571,6 +571,12 @@
     setBusy(true, "Gathering evidence…");
     try {
       const result = await window.pywebview.api.research(text, state.depth);
+      // A question about the future belongs to the Debate tab (debate.js).
+      if (!result.ok && result.debate_query && window.Debate) {
+        setBusy(false);
+        window.Debate.run(result.debate_query);
+        return;
+      }
       if (!result.ok) {
         $("ask-out").innerHTML = errorPanel(result.error, result.suggestion);
         setStatus("Could not answer that", "bad");

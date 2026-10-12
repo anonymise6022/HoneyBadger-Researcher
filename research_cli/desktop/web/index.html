@@ -16,6 +16,7 @@
     <button class="brand" id="go-home" title="Back to the start">Research</button>
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" data-view="ask" aria-selected="true">Ask</button>
+      <button class="tab" role="tab" data-view="debate" aria-selected="false">Debate</button>
       <button class="tab" role="tab" data-view="explore" aria-selected="false">Explore</button>
       <button class="tab" role="tab" data-view="options" aria-selected="false">Options</button>
       <button class="tab" role="tab" data-view="lab" aria-selected="false">
@@ -59,6 +60,29 @@
         <button class="primary" id="run">Ask</button>
       </div>
       <div class="stack" id="ask-out"></div>
+    </section>
+
+    <!-- =========================== DEBATE ===========================
+         "Is it going to go up?" -- answered with history and arguments,
+         never a forecast. The report is the exact text the validator
+         passed; debate.js prints it and computes nothing. -->
+    <section class="view" id="view-debate">
+      <div class="control-row">
+        <div class="prompt">
+          <span class="prompt-sigil">?</span>
+          <input type="text" id="debate-query" spellcheck="false" autocomplete="off"
+                 placeholder="Ask about the future — try “is Tesla going to go up”" />
+        </div>
+        <select id="debate-depth" aria-label="How simply to explain">
+          <option value="kid">Like I'm 10</option>
+          <option value="beginner" selected>Beginner</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="analyst">Analyst</option>
+        </select>
+        <button class="primary" id="debate-run">Debate</button>
+      </div>
+      <div class="dim debate-status" id="debate-status"></div>
+      <div class="stack" id="debate-out"></div>
     </section>
 
     <!-- =========================== EXPLORE ========================== -->
@@ -214,5 +238,6 @@
 
 <script src="charts.js"></script>
 <script src="app.js"></script>
+<script src="debate.js"></script>
 </body>
 </html>

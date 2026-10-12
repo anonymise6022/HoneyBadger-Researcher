@@ -19,6 +19,7 @@ The tool stays usable rather than failing on a presentation dependency.
 from __future__ import annotations
 
 from ..evidence.schema import CandidateFactor, EvidenceBundle
+from .scenario_display import print_scenarios
 
 __all__ = [
     "console_available",
@@ -225,14 +226,15 @@ def print_bundle(bundle: EvidenceBundle, report: str, plain: bool = False) -> No
     console = Console()
     observation = bundle.observation
 
-    is_snapshot = bundle.question_type == "snapshot"
+    is_snapshot = bundle.question_type in ("snapshot", "outlook")
     header = f"[bold]{bundle.ticker}[/bold]  ·  {bundle.period_description}"
     if bundle.is_synthetic:
         header += "  ·  [bold red]SYNTHETIC DATA -- not real prices[/bold red]"
+    titles = {"snapshot": "Company snapshot", "outlook": "Outlook -- what history can say"}
     console.print(
         Panel(
             header,
-            title="Company snapshot" if is_snapshot else "Research note",
+            title=titles.get(bundle.question_type, "Research note"),
             border_style="blue",
             expand=True,
         )
@@ -240,6 +242,7 @@ def print_bundle(bundle: EvidenceBundle, report: str, plain: bool = False) -> No
 
     if is_snapshot:
         _print_snapshot(bundle, console)
+        print_scenarios(bundle, console)
 
     if observation is not None:
         tone = "yellow" if observation.is_unusual else "cyan"

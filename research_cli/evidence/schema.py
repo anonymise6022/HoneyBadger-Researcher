@@ -33,6 +33,8 @@ from typing import Literal
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
+from .scenario_schema import ScenarioBaseline, ScenarioResult
+
 __all__ = [
     "CandidateFactor",
     "Confidence",
@@ -49,7 +51,7 @@ __all__ = [
     "confidence_for_sample",
 ]
 
-QuestionType = Literal["attribution", "snapshot"]
+QuestionType = Literal["attribution", "snapshot", "outlook"]
 Confidence = Literal["none", "low", "moderate", "high"]
 
 #: Whether a factor is *part of* the thing it is being compared against.
@@ -423,6 +425,10 @@ class EvidenceBundle(BaseModel):
     peers: list[PeerComparison] = Field(default_factory=list)
     trend: PriceTrend | None = None
     news: list[NewsItem] = Field(default_factory=list)
+    #: Historical "what if" scenarios and their every-day baseline. Only an
+    #: outlook bundle carries them; see `evidence.scenario_schema`.
+    scenarios: tuple[ScenarioResult, ...] = ()
+    scenario_baseline: ScenarioBaseline | None = None
     data_sources: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
@@ -486,6 +492,15 @@ class EvidenceBundle(BaseModel):
             elif isinstance(value, (list, tuple)):
                 for index, item in enumerate(value):
                     walk(item, f"{path}[{index}]")
+            elif isinstance(value, dict):
+                # Without this branch a number inside a mapping is invisible
+                # here while still being handed to the report writer, and the
+                # validator then rejects the report for quoting the bundle
+                # back accurately. `peers[].peer_values` is the case that
+                # found it: every individual peer's figure went to the model
+                # and none of them counted as supported.
+                for key, item in value.items():
+                    walk(item, f"{path}[{key!r}]" if path else str(key))
 
         walk(self, "")
         return numbers

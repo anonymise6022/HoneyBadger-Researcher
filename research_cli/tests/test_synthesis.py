@@ -13,10 +13,11 @@ from datetime import date
 import pytest
 
 from research_cli.evidence.schema import Counterevidence
+from research_cli.evidence.snapshot import build_snapshot_bundle
 from research_cli.evidence.why_moved import build_why_moved_bundle
 from research_cli.query_parser import parse_query
 from research_cli.synthesis.template_report import REQUIRED_SECTIONS, render_report
-from research_cli.synthesis.validator import extract_numbers, validate_report
+from research_cli.synthesis.validator import _allowed_values, extract_numbers, validate_report
 
 TODAY = date(2026, 9, 21)
 
@@ -89,6 +90,54 @@ def test_dates_are_not_read_as_numeric_claims(report: str) -> None:
     """'Monday 21 September 2026' must not surface 21 and 2026 as claims."""
     numbers = [value for value, _, _ in extract_numbers(report)]
     assert 2026 not in numbers
+
+
+def test_a_figure_nested_in_a_mapping_counts_as_supported() -> None:
+    """Every peer's own P/E is handed to the report writer inside
+    `peers[].peer_values`, and for a while none of them counted as evidence:
+    the flattener walked models, lists and tuples but not dictionaries. A
+    report that quoted the bundle back accurately was rejected for it, which
+    is the one kind of validator failure that teaches the writer to lie.
+    """
+    # Peers live on a snapshot bundle, not an attribution one.
+    bundle = build_snapshot_bundle(
+        parse_query("is AAPL good to invest", today=TODAY), source="mock"
+    )
+    peers = next(p for p in bundle.peers if p.peer_values)
+
+    supported = _allowed_values(bundle)
+    for value in peers.peer_values.values():
+        assert any(abs(candidate - value) < 1e-6 for candidate in supported)
+
+    symbol, value = next(iter(peers.peer_values.items()))
+    sentence = f"\n  Among its peers, {symbol} trades at {value:.1f} times earnings."
+    assert not [
+        issue
+        for issue in validate_report(sentence, bundle).errors
+        if issue.kind == "unsupported_number"
+    ]
+
+
+def test_a_label_is_not_read_as_a_claim() -> None:
+    """Every report must carry a RAW DATA section of bundle fields, and prose
+    says "in the last 52 weeks". Neither claims the number 52, and treating
+    them as claims made the validator reject correct reports."""
+    for text in (
+        "The highest price in the last 52 weeks was 733.16",
+        "high_52w: 733.16",
+        "the 52-week high",
+    ):
+        assert 52 not in [value for value, _, _ in extract_numbers(text)]
+
+
+def test_a_figure_standing_on_its_own_is_still_a_claim() -> None:
+    """The counterpart: the label rules must not swallow real numbers."""
+    for text, expected in (
+        ("SPY fell 2.10% today", 2.10),
+        ("sma200 crossed above 250.49", 250.49),
+        ("a market cap of $1.5 trillion", 1.5),
+    ):
+        assert expected in [value for value, _, _ in extract_numbers(text)]
 
 
 # --- the validator on bad input --------------------------------------------

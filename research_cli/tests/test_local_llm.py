@@ -124,7 +124,14 @@ class TestPrompt:
     def test_the_checklist_reaches_the_local_model(self, bundle) -> None:
         instruction = build_messages(bundle, emphasise_rules=True)[0]["content"]
         assert FINAL_CHECKLIST.strip() in instruction
-        assert instruction.rstrip().endswith("in the order given.")
+        # Last, where a small model holds it best.
+        assert instruction.index(FINAL_CHECKLIST.strip()) > len(instruction) * 0.5
+
+    def test_the_counterevidence_is_named_not_merely_required(self, bundle) -> None:
+        """A general rule is one a 4B model agrees with and then forgets."""
+        instruction = build_messages(bundle, emphasise_rules=True)[0]["content"]
+        for item in bundle.counterevidence:
+            assert item.label in instruction
 
     def test_claude_does_not_get_it(self, bundle) -> None:
         """One prompt with one appended block, not two prompts that drift."""

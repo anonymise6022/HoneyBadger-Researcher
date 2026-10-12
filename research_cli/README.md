@@ -47,6 +47,12 @@ python -m research_cli "is AAPL good to invest"
 python -m research_cli "should i buy TSLA"
 python -m research_cli "tell me about KO"
 
+# Where might it go? (history and arguments, never a forecast)
+python -m research_cli "is Tesla going to go up"              # snapshot + "what if" scenarios
+python -m research_cli "is Tesla going to go up" --debate     # + agents argue it out
+python -m research_cli "is Tesla going to go up" --debate -d kid
+python -m research_cli plan TSLA --amount '$1000' --horizon '1 year' --max-loss '$200'
+
 # Does a trading rule actually work?
 python -m research_cli backtest SPY --strategy ma-crossover
 python -m research_cli backtest AAPL --strategy rsi --years 8
@@ -59,6 +65,10 @@ python -m research_cli backtest QQQ --strategy buy-and-hold --no-walk-forward
 --json out.json  also write the evidence bundle
 --llm            write the note with Claude in plainer language
 --compare        show the template and Claude versions side by side
+--depth, -d      kid | beginner | intermediate | analyst (simple = beginner, full = analyst)
+--debate         several AI agents argue over the evidence (see below)
+--provider       claude-cli | api | local | mock | auto (for --debate)
+--max-calls N    hard cap on model calls per question (default 12)
 --help
 ```
 
@@ -139,8 +149,34 @@ evidence bundle is computed before it is called, handed over pre-sorted, and
 traces back to a bundle field — rejecting the draft and regenerating once
 with the failures quoted back if it does not. Unvalidated prose is never
 shown, whoever wrote it. The guardrail is mechanical, so the model only has
-to rewrite faithfully, and a small one does that. Measured on the synthetic
-bundles: 52 of 52 figures traced on the first attempt.
+to rewrite faithfully, and a small one does that. Measured across six
+bundles spanning both question types: all six validated, five on the first
+attempt in forty to sixty seconds and one after a single rewrite, and every
+figure in every run traced back to the evidence. It has yet to invent a
+number.
+
+**Getting there found two bugs in the validator, not in the model.** Both
+had been rejecting correct reports, and both would have rejected Claude in
+exactly the same way — a local model was simply the thing that walked into
+them.
+
+*Numbers inside a mapping were invisible.* `EvidenceBundle.numeric_fields`
+flattened models, lists and tuples, but not dictionaries, so every figure in
+`peers[].peer_values` went to the report writer in the payload and then
+counted as **unsupported** when the writer used it. Sixteen peer figures,
+all real, all rejected.
+
+*Labels were read as claims.* Every report must carry a `RAW DATA` section
+of bundle fields, and prose naturally says "in the last 52 weeks". The
+validator pulled `52` out of `high_52w` and out of "52 weeks" and asked
+which bundle field it came from. It already had this concept — it stripped
+`52-week` — so the fix completed a rule rather than relaxing one: a number
+welded into an identifier names the thing, and a number claimed stands on
+its own.
+
+That is the argument for a mechanical guardrail working in both directions.
+A false alarm is not harmless: it teaches whoever is writing to leave true
+things out.
 
 **What the small model needed that Claude did not.** One appended block,
 `FINAL_CHECKLIST`, restating the banned words at the very end of the prompt.
@@ -279,10 +315,70 @@ run walk-forward: parameters are chosen on each training window and scored on
 the period that follows. Output is a console table beside the buy-and-hold
 benchmark, plus an equity-and-drawdown chart in `research_cli/results/`.
 
+### "Is X going to go up?" -- scenarios, debate, and a plan
+
+Nobody can answer that, and the tool does not try. A forward-looking question
+("going to", "will it rise", "outlook") is parsed as an **outlook**: the
+company snapshot plus a table of "what if" **scenarios from history** -- supply
+shock, war, rate shock, recession or crash, new regulation, a company-specific
+shock, a strong rally, and a quiet market.
+
+Each measurable scenario has a round, stated trigger ("oil up more than 30%
+over three months", "SPY 20% below its high") and reports how often it held
+(share of months), what the symbol did 5, 21 and 63 trading days later
+(median, 10th-90th percentile, worst, share that ended lower), and how many
+*separate episodes* that rests on. Two episodes is the floor for quoting any
+outcome. A war or a new law has no honest price trigger, so it gets no number
+at all: only past examples and what to watch for. Every scenario sits beside
+the every-day baseline, because "lower 45% of the time after an oil spike" only
+means something next to "lower 44% of the time on any day".
+
+`--debate` then lets four agents argue: a Value reader (fundamentals and
+peers), a Momentum reader (trend and swings), a Big-picture reader (scenarios
+and headlines), and a Skeptic (counterevidence and limits). Each sees a
+*different* slice of numbered facts built from the bundle, so they genuinely
+disagree. Openings run in parallel; the weakest case is dropped; the rest
+cross-examine the strongest opposing claim and answer; the weakest is dropped
+again; a judge adds a small score and plain summaries. Every sentence an agent
+writes must cite fact ids it was shown, quote only numbers in those facts, and
+avoid cause, advice and certainty words. One repair attempt, then the bad part
+is dropped.
+
+**Probabilities come from code, never from a model.** The only likelihood a
+case carries is computed: how often, over 21 trading days, history agreed with
+its direction. If the top case leads by a clear margin it is "the strongest
+case"; otherwise the report says plainly that no single case won and shows the
+top two or three. Each case always shows what would prove it wrong. If the
+final report fails the validator, or the debate produced too little, the plain
+outlook report is shown instead.
+
+Only if the user then says yes to "Want help planning an investment?" -- or
+runs `plan` -- does the tool ask how much, for how long, and the most they
+could stand to lose. It answers with three labelled options, each with its
+trade-off: size the position so a bad stretch costs about the loss limit;
+the full amount with an exit rule (replayed on history, gaps included, so it
+shows how often ordinary swings would have triggered it); and a staged entry
+compared with putting it in at once, using the backtest engine. It never
+places orders and never connects to a broker.
+
+**Using your own Claude.** `--provider claude-cli` (the `auto` default when
+it is installed) runs the official `claude -p` under your existing
+`claude auth login`. The tool never reads a token: it removes
+`ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` from the child's environment so
+the subscription is used, and runs each agent with `--safe-mode`,
+`--strict-mcp-config` and `--tools ""` in an empty temp directory, so agents
+have no tools and none of your hooks, MCP servers or CLAUDE.md files. A
+response that reports a tool use is discarded. Subscription usage of `claude -p` draws on a
+limited monthly allowance, so each question is capped (`--max-calls`, default
+12; a debate uses about 10-11), agents run in parallel, and answers are cached
+on disk by request hash. `--provider mock` shows the whole layout offline with
+canned demo agents and no model calls.
+
 ## Architecture
 
 ```
 query_parser.py          natural language -> structured request (regex, never an LLM)
+explain.py               depth levels and glossary (kid is CLI-only)
 data/
   price_ingest.py        OHLCV + the volatility baseline that judges a move
   macro_ingest.py        FRED series, publication lags, release calendar
@@ -290,20 +386,47 @@ data/
   mock_data.py           deterministic synthetic fallback for every source
 evidence/
   schema.py              EvidenceBundle -- the only thing a report may reference
+  scenario_schema.py     typed scenario results carried on the bundle
   why_moved.py           observation + factors + hit rates + counterevidence
   snapshot.py            fundamentals + peers + trend + news
+  outlook.py             snapshot + scenarios, for forward-looking questions
+scenarios/
+  library.py             the fixed "what if" scenarios, triggers and episodes
+  measure.py             pure triggers, frequencies and forward outcomes
+  engine.py              measures the library against one symbol's history
+debate/
+  evidence_ids.py        bundle -> numbered facts, sliced per persona
+  personas.py            the four debaters, the judge, and their prompts
+  checks.py              parse agent JSON; reject bad ids, numbers, wording
+  rubric.py              scoring, elimination, clear-winner margin, support %
+  protocol.py            the bounded rounds
+  runner.py              provider + budget + debate + validated report
+  demo.py                canned demo agents (--provider mock, tests)
+planner/
+  inputs.py, sizing.py   answers -> request; risk over a horizon; loss sizing
+  plan.py, render.py     three options with trade-offs; validated text
+  interactive.py         the opt-in questions; command.py: `plan`
 synthesis/
   template_report.py     bundle -> plain text, no model
   snapshot_report.py     the same, for company snapshots
+  outlook_report.py      snapshot + the scenario section
+  debate_report.py       the debate, rendered and gated
   llm_report.py          the same, written by Claude, then verified
+  llm_provider.py        one interface: claude-cli, api, local, mock
+  claude_cli.py          the subscription provider, isolated and tool-less
+  llm_budget.py          call cap, disk cache, parallel calls
   validator.py           every number in the prose must trace to a bundle field
+  validator_stance.py    certainty ban and claim-level number tracing
 backtest/
   engine.py              event-driven loop; lookahead structurally impossible
-  strategies.py          the three built-in rules
+  strategies.py          the three built-in rules (+ quant_strategies.py)
   walk_forward.py        fit on the past, measure on the future
   risk_metrics.py        Sharpe, drawdown, win rate
   plots.py               equity + drawdown chart
-display/formatting.py    rich terminal rendering
+quant/                   GARCH, Hurst/variance ratio, OU half-life (alpha)
+options/                 Black-Scholes greeks, chains, the paper account
+desktop/                 the pywebview app; app.py is the older Textual UI
+display/                 rich terminal rendering; scenario and debate views
 ```
 
 Two load-bearing constraints:
@@ -325,8 +448,13 @@ check on every fold.
 ## Running the tests
 
 ```bash
-pytest research_cli/tests/ -q      # 370 tests, no network, no API keys
+pytest research_cli/tests/ -q      # 600+ tests, no network, no API keys
 ```
+
+A few tests need optional packages that are not in `requirements.txt`:
+`textual` (the older terminal app), `statsmodels` (the ADF test) and `httpx2`
+(one API-error test). One opt-in test calls the real `claude` binary:
+`RESEARCH_CLI_LIVE_CLAUDE=1 pytest research_cli/tests/test_llm_provider.py`.
 
 Synthetic data is seeded from a hash of the symbol, so `mock_price_history("AAPL")`
 returns identical data on every machine and tests assert real values.
@@ -390,11 +518,6 @@ split. A user who sets a key, confirms it in Terminal, then double-clicks the
 app and sees synthetic data again has no way to guess why. The file is the
 fix; the environment still takes priority.
 
-**The app is Textual, not native widgets.** The terminal aesthetic is the
-point — dense, monospaced, information-first — and Textual keeps it while
-adding an input box, tabs, scrolling and a progress indicator. It is also pure
-Python, so there is no Node or Rust toolchain in the build.
-
 **Rescaled range takes returns, not prices.** R/S analysis cumulates the
 series it is given, so passing a price level integrates twice and returns
 roughly H + 1 — a random walk's prices score 1.01 instead of its returns'
@@ -416,11 +539,28 @@ bar and reported every simulated random walk as mean-reverting with a
 140-day half-life. With a proper ADF test the false-positive rate drops to
 the test's own 5% size.
 
-**The app is Textual no longer.** The terminal-in-a-window version is kept
-behind `--terminal`, but the default is a native WebKit window: real
-typography, CSS themes, SVG charts and subtle motion, none of which a
-character grid can do. The brief was "terminal-like, not 8-bit", and the
-distinction is exactly that.
+**The app is a native window, not Textual.** It started as a Textual
+terminal UI, chosen for its dense, monospaced look and pure-Python build. That
+version is kept behind `--terminal` (`app.py`), but the default is a native
+WebKit window: real typography, CSS themes, SVG charts and subtle motion,
+none of which a character grid can do. The brief was "terminal-like, not
+8-bit", and the distinction is exactly that.
+
+**Models argue; code counts.** In a debate, a model may weigh and explain,
+but every likelihood figure is computed in Python from the bundle, and rubric
+scores that rank arguments are never printed, because a 0.74 next to a case
+reads as a probability whatever the label says.
+
+**Scenario triggers are round, stated thresholds.** The same free-parameter
+risk the quintile hit rates avoid applies here, so each trigger uses a
+conventional definition written into its label (a bear market is 20% below the
+high), and confidence comes from separate episodes rather than days, because
+sixty days from one oil spike are one piece of evidence.
+
+**`extra_numbers` is the planner's alone.** The validator normally accepts only
+bundle figures. Plans print dollar amounts the bundle cannot hold, so planner
+code passes its own computed figures; a test fails if any other module passes
+`extra_numbers`, so model output can never widen the trace.
 
 **Ambiguous queries resolve, then announce.** "Why did the stock market fall"
 has no ticker, so SPY is substituted — and the report says so. Lowercase words
@@ -444,6 +584,14 @@ their neighbours would have made those files do two jobs.
 - Headlines are titles only, from a feed that is loosely tied to the ticker.
 - The backtest models commission and slippage but not borrow costs, financing,
   taxes, dividends, or market impact.
+- Scenario forward returns overlap heavily within an episode, so the day counts
+  overstate the evidence; the episode count is the honest sample size.
+- Scenario examples need prices that far back: a symbol listed after an episode
+  shows "no price history this far back" for it.
+- The plan's exit-rule replay exits at the first close below the level; it uses
+  closes, not intraday prices, and ignores costs on that exit.
+- `--debate` is for company and outlook questions, not "why did it move".
+- The kid depth is command-line only; the desktop app offers the other three.
 - One ticker per query.
 
 ## Not investment advice

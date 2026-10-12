@@ -35,9 +35,16 @@ from .display.formatting import (
     print_error,
     print_validation,
 )
+from .evidence.outlook import build_outlook_bundle
 from .evidence.snapshot import build_snapshot_bundle
 from .evidence.why_moved import DEFAULT_HISTORY_YEARS, build_why_moved_bundle
-from .explain import DEPTH_LABELS
+from .debate.runner import run_debate_flow
+from .display.debate_display import print_debate_report
+from .explain import CLI_DEPTH_LABELS, DEPTH_ALIASES, resolve_depth
+from .planner.command import plan_command
+from .planner.interactive import offer_plan
+from .synthesis.llm_budget import DEFAULT_MAX_CALLS
+from .synthesis.llm_provider import PROVIDER_NAMES
 from .query_parser import QueryParseError, parse_query
 from .settings import CONFIG_PATH, KNOWN_KEYS, clear_key, describe_credentials, set_key
 from .synthesis.llm_report import (
@@ -46,8 +53,9 @@ from .synthesis.llm_report import (
     llm_available,
     resolve_backend,
 )
-from .synthesis.snapshot_report import SNAPSHOT_SECTIONS, render_snapshot_report
-from .synthesis.template_report import REQUIRED_SECTIONS, render_report
+from .synthesis.outlook_report import render_outlook_report, sections_for
+from .synthesis.snapshot_report import render_snapshot_report
+from .synthesis.template_report import render_report
 from .synthesis.validator import validate_report
 
 _EXAMPLES = """
@@ -164,9 +172,25 @@ def ask(
         str,
         typer.Option(
             "--depth", "-d",
-            help="How much to explain: " + ", ".join(DEPTH_LABELS) + ".",
+            help="How much to explain: " + ", ".join([*CLI_DEPTH_LABELS, *DEPTH_ALIASES]) + ".",
         ),
     ] = "beginner",
+    debate: Annotated[
+        bool,
+        typer.Option(
+            "--debate",
+            help="Let several AI agents argue over the evidence and show the strongest "
+            "case or cases, with 'what if' scenarios. Uses your own Claude.",
+        ),
+    ] = False,
+    provider: Annotated[
+        str,
+        typer.Option("--provider", help="Model for --debate: " + ", ".join(PROVIDER_NAMES) + "."),
+    ] = "auto",
+    max_calls: Annotated[
+        int,
+        typer.Option("--max-calls", min=1, max=40, help="Most model calls --debate may make."),
+    ] = DEFAULT_MAX_CALLS,
 ) -> None:
     """Answer a research question about a ticker."""
     if mock and live:
@@ -177,12 +201,13 @@ def ask(
         )
         raise typer.Exit(code=2)
 
-    if depth not in DEPTH_LABELS:
-        print_error(
-            f"{depth!r} is not an explanation depth",
-            "Choose one of: " + ", ".join(DEPTH_LABELS),
-            plain,
-        )
+    try:
+        depth = resolve_depth(depth)
+    except ValueError as exc:
+        print_error(str(exc), "", plain)
+        raise typer.Exit(code=2) from None
+    if provider not in PROVIDER_NAMES:
+        print_error(f"{provider!r} is not a provider", "Choose one of: " + ", ".join(PROVIDER_NAMES), plain)
         raise typer.Exit(code=2)
 
     source: Source = "mock" if mock else "live" if live else "auto"
@@ -206,14 +231,24 @@ def ask(
         print_error(str(exc), exc.suggestion, plain)
         raise typer.Exit(code=2) from None
 
-    is_snapshot = parsed.question_type == "snapshot"
+    question = parsed.question_type
+    if debate and question == "snapshot":
+        question = "outlook"  # a debate needs the scenarios an outlook bundle carries
+    elif debate and question == "attribution":
+        print_error(
+            "--debate answers questions about a company or its future, not why a price moved",
+            'Try: research "is TSLA going to go up" --debate. Showing the normal report.',
+            plain,
+        )
+        debate = False
     try:
         with _progress(f"Gathering evidence for {parsed.ticker}", plain):
-            bundle = (
-                build_snapshot_bundle(parsed, source=source)
-                if is_snapshot
-                else build_why_moved_bundle(parsed, source=source, history_years=years)
-            )
+            if question == "snapshot":
+                bundle = build_snapshot_bundle(parsed, source=source)
+            elif question == "outlook":
+                bundle = build_outlook_bundle(parsed, source=source)
+            else:
+                bundle = build_why_moved_bundle(parsed, source=source, history_years=years)
     except UnknownSymbolError as exc:
         print_error(str(exc), exc.suggestion, plain)
         raise typer.Exit(code=4) from None
@@ -228,21 +263,33 @@ def ask(
         )
         raise typer.Exit(code=1) from None
 
-    sections = SNAPSHOT_SECTIONS if is_snapshot else REQUIRED_SECTIONS
-    template = (
-        render_snapshot_report(bundle) if is_snapshot else render_report(bundle, depth)
-    )
+    sections = sections_for(question)
+    if question == "snapshot":
+        template = render_snapshot_report(bundle)
+    elif question == "outlook":
+        template = render_outlook_report(bundle, depth)
+    else:
+        template = render_report(bundle, depth)
     report = template
     validation = validate_report(template, bundle, required_sections=sections)
+
+    if debate:
+        with _progress(f"Agents are debating {parsed.ticker} (at most {max_calls} model calls)", plain):
+            run = run_debate_flow(bundle, provider, max_calls, depth)
+        print_debate_report(run.report.text, run.notes, run.usage, run.report.reason, plain)
+        if show_validation:
+            print_validation(run.report.validation, plain=plain)
+        _write_json(bundle, json_out, plain)
+        offer_plan(bundle, plain, source=source, provider=run.provider, depth=depth, as_of=today)
+        return
 
     if llm or compare:
         if not llm_available():
             print_error(
                 "no model is configured, so the plain template is shown instead",
                 "Either download the local model (about 4GB, no key, nothing "
-                "leaves this machine) with `pip install mlx-lm` and "
-                "`research download-model`, or set ANTHROPIC_API_KEY. "
-                "Everything else works without either.",
+                "leaves this machine) with `research model --download`, or "
+                "set ANTHROPIC_API_KEY. Everything else works without either.",
                 plain,
             )
         else:
@@ -287,14 +334,18 @@ def ask(
 
     if show_validation:
         print_validation(validation, plain=plain)
+    _write_json(bundle, json_out, plain)
 
-    if json_out is not None:
-        try:
-            json_out.parent.mkdir(parents=True, exist_ok=True)
-            json_out.write_text(bundle.model_dump_json(indent=2))
-            print(f"Evidence bundle written to {json_out}")
-        except OSError as exc:
-            print_error(f"could not write {json_out} ({exc})", "", plain)
+
+def _write_json(bundle, json_out: Path | None, plain: bool) -> None:
+    if json_out is None:
+        return
+    try:
+        json_out.parent.mkdir(parents=True, exist_ok=True)
+        json_out.write_text(bundle.model_dump_json(indent=2))
+        print(f"Evidence bundle written to {json_out}")
+    except OSError as exc:
+        print_error(f"could not write {json_out} ({exc})", "", plain)
 
 
 @app.command(name="backtest")
@@ -549,8 +600,51 @@ def keys_command(
     typer.echo(f"This unlocks: {KNOWN_KEYS[key_name]}")
 
 
+@app.command(name="model")
+def model_command(
+    download: Annotated[
+        bool, typer.Option("--download", help="Fetch the weights (about 4GB, once).")
+    ] = False,
+) -> None:
+    """Show or fetch the local model that writes `--llm` reports.
+
+    Separate from `ask` on purpose. Four gigabytes is not something to
+    download as a side effect of asking a question, so `ask --llm` reports
+    the model as unavailable and falls back to the template until this has
+    been run.
+    """
+    from .synthesis.local_llm import ensure_weights, LocalUnavailable, describe
+
+    status = describe()
+    typer.echo(f"Model:  {status.model}")
+    typer.echo(f"Status: {status.detail}")
+
+    if not download:
+        if not status.ready and status.supported and status.installed:
+            typer.echo("\nTo fetch it:  research model --download")
+        typer.echo(
+            "\nReports are written on this machine. No key, no network, and the "
+            "evidence never leaves the laptop."
+        )
+        return
+
+    if status.ready:
+        typer.echo("\nAlready downloaded; nothing to do.")
+        return
+    try:
+        path = ensure_weights()
+    except LocalUnavailable as exc:
+        typer.echo(f"\n{exc}")
+        raise typer.Exit(code=2) from None
+    typer.echo(f"\nDownloaded to {path}")
+    typer.echo("`research ask \"why did SPY fall today\" --llm` will now use it.")
+
+
 #: Command names the shim below must not swallow.
-_COMMANDS = {"app", "ask", "backtest", "keys", "quant"}
+app.command(name="plan")(plan_command)
+
+
+_COMMANDS = {"app", "ask", "backtest", "keys", "model", "plan", "quant"}
 
 
 def main() -> None:

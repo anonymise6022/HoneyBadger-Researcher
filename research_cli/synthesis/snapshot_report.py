@@ -386,12 +386,17 @@ def _render_raw(bundle: EvidenceBundle) -> str:
     return "\n".join(lines)
 
 
-def render_snapshot_report(bundle: EvidenceBundle) -> str:
+def render_snapshot_report(
+    bundle: EvidenceBundle, scenario_section: str = "", title: str = "COMPANY SNAPSHOT"
+) -> str:
     """Render a full snapshot report as plain text.
 
-    Raises ValueError for an attribution bundle, which has its own renderer.
+    `scenario_section` is inserted before the closing section; the outlook
+    report uses it, so the closing still comes last and still covers the
+    scenarios' limitations. Raises ValueError for an attribution bundle,
+    which has its own renderer.
     """
-    if bundle.question_type != "snapshot":
+    if bundle.question_type not in ("snapshot", "outlook"):
         raise ValueError(
             f"render_snapshot_report handles snapshot bundles; got "
             f"{bundle.question_type!r}. Use synthesis.template_report for price moves."
@@ -400,13 +405,14 @@ def render_snapshot_report(bundle: EvidenceBundle) -> str:
         "\n".join(
             [
                 _rule(),
-                f"  COMPANY SNAPSHOT -- {bundle.ticker}",
+                f"  {title} -- {bundle.ticker}",
                 _rule(),
                 _render_question(bundle),
                 _render_identity(bundle),
                 _render_numbers(bundle),
                 _render_peers(bundle),
                 _render_price(bundle),
+                *([scenario_section] if scenario_section else []),
                 _closing_statement(bundle),
                 _render_raw(bundle),
                 "",

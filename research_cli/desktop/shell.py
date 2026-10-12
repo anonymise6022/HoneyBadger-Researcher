@@ -17,7 +17,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .api import DesktopApi
+from .debate_api import AppApi
 
 __all__ = ["WINDOW_TITLE", "launch"]
 
@@ -64,7 +64,7 @@ def launch(mock: bool = False, debug: bool = False, width: int = 1240, height: i
             "pip install -r research_cli/requirements.txt"
         ) from exc
 
-    api = DesktopApi(mock=mock)
+    api = AppApi(mock=mock)
     webview.create_window(
         WINDOW_TITLE,
         _entry_point(),

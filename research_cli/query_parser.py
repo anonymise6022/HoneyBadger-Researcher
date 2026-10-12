@@ -6,10 +6,11 @@ worth much, and that starts with the parse. If this module decides your
 question was about AAPL over the last week, it can point at the exact token
 that made it think so, and it will make the same decision tomorrow.
 
-Two question types are recognized:
+Three question types are recognized:
 
     attribution   "why did SPY fall today"       -> what coincided with a move
     snapshot      "is AAPL good to invest"       -> fundamentals and context
+    outlook       "is TSLA going to go up"       -> snapshot + historical scenarios
 
 Everything the parser is unsure about becomes a `warning` on the result
 rather than a silent default, so the CLI can tell the user what it assumed.
@@ -43,7 +44,7 @@ __all__ = [
     "resolve_symbol",
 ]
 
-QuestionType = Literal["attribution", "snapshot"]
+QuestionType = Literal["attribution", "snapshot", "outlook"]
 Direction = Literal["down", "up", "unspecified"]
 
 
@@ -104,6 +105,19 @@ _SNAPSHOT_MARKERS = (
     "is it a buy", "a good buy", "good stock", "tell me about",
     "what do you think", "look into", "research", "analyze", "analyse",
     "fundamentals", "overview of", "snapshot of", "invest in", "investing in",
+)
+
+#: Patterns that mark a question about the *future* -- "is TSLA going to go
+#: up". Without these a bare direction word reads as "why did it move", and
+#: a forward-looking question gets a report about yesterday. The answer is
+#: never a forecast: an outlook bundle is the snapshot plus historical "what
+#: if" scenarios, each labelled as how often something happened before.
+_OUTLOOK_PATTERNS = (
+    r"\bgoing to\b", r"\bgonna\b", r"\boutlook\b", r"\bforecast\b",
+    r"\bpredict(?:ion|ions)?\b", r"\bin the future\b", r"\bfuture of\b",
+    r"\bhead(?:ed|ing)\b", r"\bnext (?:week|month|quarter|year)\b",
+    r"\bwill\s+\S+\s+(?:go|keep|rise|fall|drop|crash|rally|climb|recover|bounce|be)\b",
+    r"\bwill (?:it|they) (?:go|keep|rise|fall|drop|crash|rally|climb|recover|bounce|be)\b",
 )
 
 #: Words that look like tickers but are not. Kept deliberately tight: the
@@ -179,7 +193,7 @@ class ParsedQuery:
 
     Attributes
     ----------
-    question_type : "attribution" or "snapshot".
+    question_type : "attribution", "snapshot" or "outlook".
     ticker : the symbol as the user would recognize it, e.g. "SPY",
         "EURUSD". Use `yf_symbol` for the data-vendor spelling.
     start, end : inclusive date range the question covers. For "today" both
@@ -506,8 +520,23 @@ def _classify(query: str) -> QuestionType:
     plus a direction word beats a snapshot marker, which is what makes
     "should i buy AAPL after it fell today" parse as a snapshot but "why
     did AAPL fall today, should i buy" parse as attribution.
+
+    A forward-looking marker ("going to", "will it rise") makes the question
+    an outlook unless an attribution marker comes first. Outlook beats a
+    snapshot marker because the outlook bundle already contains the snapshot.
     """
     lowered = query.lower()
+    outlook_at = min(
+        (m.start() for p in _OUTLOOK_PATTERNS if (m := re.search(p, lowered))),
+        default=None,
+    )
+    if outlook_at is not None:
+        attribution_at = min(
+            (lowered.index(m) for m in _ATTRIBUTION_MARKERS if m in lowered), default=None
+        )
+        if attribution_at is None or outlook_at < attribution_at:
+            return "outlook"
+
     has_snapshot = any(marker in lowered for marker in _SNAPSHOT_MARKERS)
     has_attribution = any(marker in lowered for marker in _ATTRIBUTION_MARKERS)
 

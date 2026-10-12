@@ -44,7 +44,7 @@ a = Analysis(
     ],
     hookspath=[],
     runtime_hooks=[],
-    excludes=["torch", "xgboost", "sklearn", "tkinter", "PyQt5", "PyQt6", "PySide6", "IPython"],
+    excludes=["torch", "xgboost", "sklearn", "numba", "llvmlite", "tkinter", "PyQt5", "PyQt6", "PySide6", "IPython"],
     noarchive=False,
 )
 
@@ -80,11 +80,11 @@ app = BUNDLE(
     name="Research.app",
     icon=str(PROJECT / "research_cli" / "desktop" / "Research.icns"),
     bundle_identifier="local.research-cli.desktop",
-    version="0.2.0",
+    version="0.3.0",
     info_plist={
         "CFBundleName": "Research",
         "CFBundleDisplayName": "Research",
-        "CFBundleShortVersionString": "0.2.0",
+        "CFBundleShortVersionString": "0.3.0",
         "LSMinimumSystemVersion": "11.0",
         "NSHighResolutionCapable": True,
         # The app reads market data over HTTPS only; no plaintext exception

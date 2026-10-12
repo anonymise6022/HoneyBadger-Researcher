@@ -1,0 +1,9 @@
+# build output -- rebuild with pyinstaller research_cli/desktop/Research.spec
+dist/
+build/
+# caches
+__pycache__/
+*.pyc
+.pytest_cache/
+research_cli/.cache/
+.DS_Store

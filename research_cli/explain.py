@@ -11,9 +11,11 @@ all three, so switching level can change the words and never the figures.
 That is the point: a beginner and an analyst reading the same report must
 not be able to reach different conclusions about what happened.
 
-Three levels:
+Four levels (kid is command-line only for now):
 
-    beginner      every term glossed in passing; short sentences; the
+    kid           short sentences and one everyday comparison per term,
+                  for a reader of about ten; same figures as the rest
+    beginner     every term glossed in passing; short sentences; the
                   question "is this even unusual" answered before anything
                   else, because that is the thing beginners most often miss
     intermediate  assumes P/E, volatility and a base rate need no
@@ -32,18 +34,61 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-__all__ = ["DEPTH_LABELS", "Depth", "Lexicon", "describe_depth"]
+__all__ = [
+    "CLI_DEPTH_LABELS",
+    "DEPTH_ALIASES",
+    "DEPTH_LABELS",
+    "Depth",
+    "Lexicon",
+    "describe_depth",
+    "resolve_depth",
+]
 
-Depth = Literal["beginner", "intermediate", "analyst"]
+Depth = Literal["kid", "beginner", "intermediate", "analyst"]
 
+#: The depths the desktop app offers. `kid` is CLI-only for now, so it lives
+#: in `CLI_DEPTH_LABELS` rather than here, which the app reads directly.
 DEPTH_LABELS: dict[Depth, str] = {
     "beginner": "Beginner -- every term explained",
     "intermediate": "Intermediate -- assumes the basics",
     "analyst": "Analyst -- terse and quantitative",
 }
 
+CLI_DEPTH_LABELS: dict[Depth, str] = {
+    "kid": "Kid -- short sentences and everyday comparisons",
+    **DEPTH_LABELS,
+}
+
+#: Other names accepted on the command line.
+DEPTH_ALIASES: dict[str, Depth] = {"simple": "beginner", "full": "analyst"}
+
 #: Ordering, for comparisons like "at least intermediate".
-_RANK: dict[Depth, int] = {"beginner": 0, "intermediate": 1, "analyst": 2}
+_RANK: dict[Depth, int] = {"kid": -1, "beginner": 0, "intermediate": 1, "analyst": 2}
+
+#: Glosses for the kid depth: one everyday comparison per term. Terms not
+#: listed fall back to the beginner gloss, so a kid never gets *less*.
+_KID_GLOSSARY: dict[str, str] = {
+    "standard_deviation": "how big a normal day's wobble is",
+    "base_rate": "what happens on any ordinary day, like knowing a coin lands heads about half the time",
+    "hit_rate": "how often the price moved the same way on days like this one",
+    "lift": "how much better than a plain guess this is",
+    "volatility": "how much the price jumps up and down, like waves on a lake",
+    "pe_ratio": "how many years of the company's profit you would pay for one share",
+    "profit_margin": "out of every dollar the company takes in, how many cents it keeps",
+    "dividend_yield": "pocket money the company pays you each year for owning a share",
+    "debt_to_equity": "how much the company borrowed compared with what its owners put in",
+    "drawdown": "the biggest drop from a high point, like sliding down a hill",
+    "sharpe": "how much you earned for each bump in the ride",
+}
+
+
+def resolve_depth(name: str) -> Depth:
+    """A depth from its name or alias. Raises ValueError for anything else."""
+    depth = DEPTH_ALIASES.get(name, name)
+    if depth not in _RANK:
+        known = ", ".join([*CLI_DEPTH_LABELS, *DEPTH_ALIASES])
+        raise ValueError(f"{name!r} is not an explanation depth; choose one of: {known}")
+    return depth  # type: ignore[return-value]
 
 #: term -> (beginner gloss, intermediate gloss). The analyst level gets
 #: neither. Glosses are written to sit inside a sentence in parentheses, so
@@ -143,7 +188,12 @@ class Lexicon:
 
     @property
     def is_beginner(self) -> bool:
-        return self.depth == "beginner"
+        """True for beginner and kid: both get every term explained."""
+        return self.depth in ("beginner", "kid")
+
+    @property
+    def is_kid(self) -> bool:
+        return self.depth == "kid"
 
     @property
     def is_analyst(self) -> bool:
@@ -158,12 +208,16 @@ class Lexicon:
         entry = _GLOSSARY.get(term)
         if entry is None or self.is_analyst:
             return ""
-        text = entry[0] if self.is_beginner else entry[1]
+        if self.is_kid:
+            text = _KID_GLOSSARY.get(term, entry[0])
+        else:
+            text = entry[0] if self.is_beginner else entry[1]
         return f" ({text})" if parenthesized else text
 
-    def pick(self, beginner: str, intermediate: str, analyst: str) -> str:
-        """Choose between three phrasings of the same fact."""
+    def pick(self, beginner: str, intermediate: str, analyst: str, kid: str | None = None) -> str:
+        """Choose between phrasings of the same fact. Kid falls back to beginner."""
         return {
+            "kid": kid if kid is not None else beginner,
             "beginner": beginner,
             "intermediate": intermediate,
             "analyst": analyst,
@@ -183,4 +237,4 @@ class Lexicon:
 
 def describe_depth(depth: Depth) -> str:
     """One line describing a depth, for menus and help text."""
-    return DEPTH_LABELS[depth]
+    return CLI_DEPTH_LABELS[depth]

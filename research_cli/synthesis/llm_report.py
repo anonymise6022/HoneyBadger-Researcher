@@ -42,8 +42,6 @@ from typing import Any
 
 from ..evidence.schema import EvidenceBundle
 from ..settings import get_key
-from .snapshot_report import SNAPSHOT_SECTIONS
-from .template_report import REQUIRED_SECTIONS
 from .validator import ValidationReport, validate_report
 
 __all__ = [
@@ -58,10 +56,10 @@ __all__ = [
     "resolve_backend",
 ]
 
-#: Claude Opus 5. Report writing under hard constraints is a reasoning task,
+#: Claude Opus 5.5. Report writing under hard constraints is a reasoning task,
 #: not a formatting one -- the model has to decide what a beginner needs told
 #: about a statistic while touching none of the numbers.
-DEFAULT_MODEL = "claude-opus-5"
+DEFAULT_MODEL = "claude-opus-5-5"
 
 #: Effort is set to medium rather than the default high: this is a CLI a
 #: person is waiting on, the evidence is already computed, and the remaining
@@ -280,24 +278,34 @@ BEFORE YOU FINISH, CHECK THE NOTE YOU HAVE WRITTEN:
 
 - These words must not appear anywhere in it: because, caused, due to, \
 drove, driven by, triggered, led to, resulted in, thanks to, the reason for. \
-Not about the market, and not about statistics or sample sizes either. Start \
-a new sentence instead.
+Not about the market, not about statistics or sample sizes, and not in a \
+sentence explaining that you are avoiding them. Start a new sentence instead.
+- You did not quote, restate or summarise these instructions anywhere in the \
+note. The reader is being shown a research note, not the rules it was \
+written under, and repeating the list of forbidden words puts every one of \
+them on their screen.
 - Every number in your note appears in the bundle above.
 - You wrote sentences, not a list of fields. Never copy a bundle field name \
 such as high_52w, annualized_vol_pct or beats_base_rate into the note; say \
 what it means in words. A field name carries digits of its own and they are \
 not figures you were given.
 - Every item in the bundle's counterevidence list is mentioned, in the \
-section that says what the numbers do not tell you. Leaving one out is the \
-one omission this note is never allowed to make.
+section named for it below. Leaving one out is the one omission this note \
+is never allowed to make.
 - Long numbers are rounded the way a person would say them: $1.5 trillion, \
 not 1508144331448.53; 733 rather than 733.1641514191865.
-- You never gave a figure for a named peer company. The bundle holds this \
-company's own value and the median across its peers, and nothing else. \
-Writing "Microsoft trades at 27.9" states a figure you were not given, even \
-if you believe it. Compare against "the typical company in this group".
+- No ranges and no approximations. Write the figure the bundle gives. \
+"about 208 days" is fine; "~208-209 days" invents a second number and reads \
+as minus 209.
 - You used every section heading given, in the order given.
 """
+
+
+def _sections(bundle: EvidenceBundle) -> tuple[str, ...]:
+    """Required headings for this bundle's question type."""
+    from .outlook_report import sections_for  # noqa: PLC0415
+
+    return sections_for(bundle.question_type)
 
 
 def build_messages(
@@ -320,9 +328,7 @@ def build_messages(
     that changes for every model is a prompt nobody can reason about, so the
     difference is one appended block rather than a second prompt.
     """
-    sections = (
-        SNAPSHOT_SECTIONS if bundle.question_type == "snapshot" else REQUIRED_SECTIONS
-    )
+    sections = _sections(bundle)
     instruction = (
         "Write the research note for this evidence bundle.\n\n"
         "Use exactly these section headings, in this order:\n"
@@ -339,6 +345,27 @@ def build_messages(
         )
     if emphasise_rules:
         instruction += FINAL_CHECKLIST
+        # A general instruction to include the counterevidence is one a small
+        # model agrees with and then forgets. Naming the specific points it
+        # has to cover, last, is the difference between a note that surfaces
+        # what cuts against the figures and one that quietly drops it -- and
+        # dropping it is the single omission the validator treats as fatal.
+        if bundle.counterevidence:
+            listed = "\n".join(f'  - "{item.label}"' for item in bundle.counterevidence)
+            # Name the section this bundle actually has. The two question
+            # types keep their counterevidence in differently named sections,
+            # and pointing an attribution note at the snapshot's heading sent
+            # the model looking for a section that was not in its list -- so
+            # it wrote neither, and dropped the counterevidence altogether.
+            home = (
+                "WHAT THIS DOES NOT TELL YOU"
+                if bundle.question_type in ("snapshot", "outlook")
+                else "COMPETING EXPLANATIONS"
+            )
+            instruction += (
+                "\nEach of these must appear in the note, in its own sentence, "
+                f"under {home}:\n{listed}\n"
+            )
     return [{"role": "user", "content": instruction}]
 
 
@@ -480,11 +507,7 @@ def generate_report(
         validation = validate_report(
             text,
             bundle,
-            required_sections=(
-                SNAPSHOT_SECTIONS
-                if bundle.question_type == "snapshot"
-                else REQUIRED_SECTIONS
-            ),
+            required_sections=_sections(bundle),
         )
         last_report, last_validation = text, validation
 

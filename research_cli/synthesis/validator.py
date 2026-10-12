@@ -93,21 +93,25 @@ VERDICT_PATTERNS: tuple[tuple[str, str], ...] = (
 #: Numbers a report may always use: they are structural, not claims.
 _ALWAYS_ALLOWED = {0.0, 1.0, 2.0, 100.0}
 
-#: Durations inside fixed labels ("12-month range", "52-week high"). The
-#: number is part of the label's name, not a measurement, so it is removed
-#: before extraction rather than having to appear in the bundle.
-#:
-#: The abbreviated forms are here for the same reason and not as a
-#: concession: "52w high" and "52-week high" are the same label, and a
-#: report that happens to use the short one is making no additional claim.
-#: The abbreviations are kept deliberately tight -- a letter immediately
-#: after the digits, and never a bare "m", which would swallow "3m" meaning
-#: three million.
+#: Durations inside fixed labels ("12-month range", "52-week high", "the
+#: last 52 weeks"). The number is part of the label's name, not a
+#: measurement, so it is removed before extraction rather than having to
+#: appear in the bundle. The hyphen and the space are the same phrase, and
+#: prose reaches for the space -- a rewrite that says "in the last 52 weeks"
+#: is making no claim the hyphenated form does not.
 _DURATION_LABEL = re.compile(
-    r"\b\d{1,3}\s*-\s*(?:day|week|month|quarter|year)s?\b"
-    r"|\b\d{1,3}(?:d|w|wk|wks|mo|q|y|yr|yrs)\b",
-    re.IGNORECASE,
+    r"\b\d{1,3}\s*[-\s]\s*(?:day|week|month|quarter|year)s?\b", re.IGNORECASE
 )
+
+#: A number welded into an identifier: `high_52w`, `low_52w`, `sma200`, `rsi14`.
+#:
+#: The RAW DATA section every report must carry is a list of bundle fields,
+#: and a writer that labels a row with the field's own name is doing as it
+#: was asked. The digits there name the thing; nobody is claiming the number
+#: 52. A figure being *claimed* stands on its own -- "733.16", "43.0%" --
+#: and those are untouched by this, since a token of pure digits fails the
+#: letter half of the test.
+_IDENTIFIER_NUMBER = re.compile(r"\b(?=\w*[A-Za-z_])(?=\w*\d)\w+\b")
 
 _ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 _MONTH_NAMES = (
@@ -194,6 +198,7 @@ def extract_numbers(text: str) -> list[tuple[float, str, str]]:
     cleaned = _ISO_DATE.sub(" ", text)
     cleaned = _WRITTEN_DATE.sub(" ", cleaned)
     cleaned = _DURATION_LABEL.sub(" ", cleaned)
+    cleaned = _IDENTIFIER_NUMBER.sub(" ", cleaned)
     cleaned = _RULE_LINE.sub(" ", cleaned)
     cleaned = _LIST_MARKER.sub(r"\1", cleaned)
 
@@ -247,6 +252,11 @@ def _bundle_strings(bundle: EvidenceBundle) -> list[str]:
         texts.extend(
             [bundle.fundamentals.company_name or "", bundle.fundamentals.sector or ""]
         )
+    for scenario in bundle.scenarios:
+        texts.extend([scenario.label, scenario.plain_label, scenario.description])
+        texts.extend([scenario.trigger_description or "", scenario.note or ""])
+        texts.extend(scenario.watch_for)
+        texts.extend(example.label for example in scenario.examples)
     return [t for t in texts if t]
 
 
@@ -318,6 +328,8 @@ def validate_report(
     check_numbers: bool = True,
     forbid_verdicts: bool = True,
     required_sections: tuple[str, ...] | None = None,
+    forbid_certainty: bool = False,
+    extra_numbers: frozenset[float] | None = None,
 ) -> ValidationReport:
     """Validate a rendered report against the bundle it was built from.
 
@@ -330,6 +342,12 @@ def validate_report(
     forbid_verdicts : flag buy/sell/hold language. Always on in practice.
     required_sections : headings that must appear. Defaults to the
         attribution report's sections.
+    forbid_certainty : also flag certainty about the future ("will rise",
+        "guaranteed"). On for debate and planning prose.
+    extra_numbers : figures computed by deterministic planner code that are
+        not bundle fields. **Only planner code may pass this** -- never
+        anything derived from model output, or the trace stops meaning
+        "this number came from the evidence".
 
     Returns a `ValidationReport`; never raises for report content, since a
     validator that crashes on bad input cannot report on bad input.
@@ -390,6 +408,21 @@ def validate_report(
                     )
                 )
 
+    if forbid_certainty:
+        from .validator_stance import CERTAINTY_PATTERNS  # noqa: PLC0415
+
+        for pattern, label in CERTAINTY_PATTERNS:
+            for match in re.finditer(pattern, lowered):
+                start, stop = max(0, match.start() - 40), min(len(scannable), match.end() + 40)
+                result.issues.append(
+                    ValidationIssue(
+                        "error",
+                        "certainty_language",
+                        f"claims certainty about the future with {label!r}",
+                        " ".join(scannable[start:stop].split()),
+                    )
+                )
+
     if bundle.counterevidence:
         labels_present = sum(
             1 for item in bundle.counterevidence if item.label.lower()[:40] in lowered
@@ -415,6 +448,8 @@ def validate_report(
 
     if check_numbers:
         allowed = _allowed_values(bundle)
+        if extra_numbers:
+            allowed |= {v for x in extra_numbers for v in (x, abs(x))}
         for value, token, excerpt in extract_numbers(scannable):
             result.numbers_checked += 1
             if _matches(value, allowed, _decimals(token)):
